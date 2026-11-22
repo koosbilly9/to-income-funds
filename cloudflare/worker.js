@@ -446,7 +446,7 @@ async function handleFunds(request, env, ctx) {
   }
 
   const cache = typeof caches !== "undefined" && caches ? caches.default : null;
-  const cacheKey = new Request(new URL("/api/funds", request.url), { method: "GET" });
+  const cacheKey = new Request(new URL("/api/funds?v=2", request.url), { method: "GET" });
   if (cache) {
     try {
       const cached = await cache.match(cacheKey);

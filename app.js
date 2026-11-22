@@ -90,7 +90,7 @@
   }
 
   function requestFunds() {
-    return root.fetch(apiUrl("/api/funds"), { headers: { Accept: "application/json" } }).then(function (response) {
+    return root.fetch(apiUrl("/api/funds?v=2"), { headers: { Accept: "application/json" } }).then(function (response) {
       if (!response.ok) throw new Error("Fund details request failed (HTTP " + response.status + ")");
       return response.json();
     }).then(validFundPayload);
