@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import worker, { buildFundData, buildStrcData, parseAbsaNoticeSelectHtml } from "../cloudflare/worker.js";
+import worker, {
+  buildFundData,
+  buildStrcData,
+  parseAbsaNoticeSelectHtml,
+  parseUnumAlphaUpgradeHtml,
+} from "../cloudflare/worker.js";
 
 const SAMPLE_ABSA_NOTICE_SELECT_HTML = `
 <li class="accordion-slide odd">
@@ -50,6 +55,15 @@ const SAMPLE_ABSA_NOTICE_SELECT_HTML = `
 </li>
 `;
 
+const SAMPLE_UNUM_ALPHA_UPGRADE_HTML = `
+<div class="et_pb_text_inner">
+  <h1><strong>Debt Fund</strong></h1>
+  <p><strong>Alpha Upgrade</strong></p>
+  <h2><strong>Projected Returns</strong></h2>
+  <p>The Alpha Upgrade Fund is designed for investors seeking consistent high yield returns in excess of its CPI + 8% benchmark. The fund targets an annual return of 18% &#8211; 25%.</p>
+</div>
+`;
+
 test("parses the 45-day Notice Select standard rate, minimum deposit, and review date from Absa HTML", () => {
   const parsed = parseAbsaNoticeSelectHtml(SAMPLE_ABSA_NOTICE_SELECT_HTML, new Date("2026-11-22T12:00:00.000Z"));
   assert.ok(parsed);
@@ -58,16 +72,32 @@ test("parses the 45-day Notice Select standard rate, minimum deposit, and review
   assert.equal(parsed.rateAsOf, "2026-09-25");
 });
 
-test("returns only the requested Absa notice account and leaves unverified figures blank", () => {
+test("parses the 18% lower-bound target annual return from Unum Alpha Upgrade HTML and leaves minimum unverified", () => {
+  const parsed = parseUnumAlphaUpgradeHtml(SAMPLE_UNUM_ALPHA_UPGRADE_HTML, new Date("2026-11-22T12:00:00.000Z"));
+  assert.ok(parsed);
+  assert.equal(parsed.minimumInvestmentZar, null);
+  assert.equal(parsed.annualRatePercent, 18);
+  assert.equal(parsed.targetReturnMinPercent, 18);
+  assert.equal(parsed.targetReturnMaxPercent, 25);
+  assert.equal(parsed.rateAsOf, "2026-11-22");
+});
+
+test("returns the Absa notice account and Unum Alpha Upgrade Fund and leaves unverified figures blank", () => {
   const now = new Date("2026-11-22T12:00:00.000Z");
   const data = buildFundData({}, now);
   assert.equal(data.updatedAt, now.toISOString());
-  assert.equal(data.funds.length, 1);
+  assert.equal(data.funds.length, 2);
   assert.equal(data.funds[0].id, "absa-45-day-notice");
   assert.equal(data.funds[0].minimumInvestmentZar, null);
   assert.equal(data.funds[0].annualRatePercent, null);
   assert.equal(data.funds[0].category, "Notice deposit account");
   assert.equal(data.funds[0].source.url, "https://www.absa.co.za/rates-and-fees/?scrolltome=notice-select");
+
+  assert.equal(data.funds[1].id, "unum-alpha-upgrade");
+  assert.equal(data.funds[1].minimumInvestmentZar, null);
+  assert.equal(data.funds[1].annualRatePercent, null);
+  assert.equal(data.funds[1].access, "30 days' notice");
+  assert.equal(data.funds[1].source.url, "https://koinz.co.za/alpha-upgrade-debt-fund/");
 });
 
 test("accepts explicitly configured rate and minimum with a source date", () => {
@@ -75,24 +105,34 @@ test("accepts explicitly configured rate and minimum with a source date", () => 
     ABSA_MINIMUM_ZAR: "1000",
     ABSA_ANNUAL_RATE_PERCENT: "7.5",
     ABSA_RATE_AS_OF: "2026-11-22",
+    UNUM_MINIMUM_ZAR: "100000",
+    UNUM_ANNUAL_RATE_PERCENT: "18",
+    UNUM_RATE_AS_OF: "2026-11-22",
   });
   assert.equal(data.funds[0].minimumInvestmentZar, 1000);
   assert.equal(data.funds[0].annualRatePercent, 7.5);
   assert.equal(data.funds[0].rateAsOf, "2026-11-22");
+  assert.equal(data.funds[1].minimumInvestmentZar, 100000);
+  assert.equal(data.funds[1].annualRatePercent, 18);
+  assert.equal(data.funds[1].rateAsOf, "2026-11-22");
 });
 
 test("rejects malformed configuration instead of publishing invalid figures", () => {
   assert.throws(() => buildFundData({ ABSA_ANNUAL_RATE_PERCENT: "-2" }), /number from 0 to 100/);
   assert.throws(() => buildFundData({ ABSA_ANNUAL_RATE_PERCENT: "101" }), /number from 0 to 100/);
   assert.throws(() => buildFundData({ ABSA_RATE_AS_OF: "22-11-2026" }), /YYYY-MM-DD/);
+  assert.throws(() => buildFundData({ UNUM_ANNUAL_RATE_PERCENT: "120" }), /number from 0 to 100/);
+  assert.throws(() => buildFundData({ UNUM_RATE_AS_OF: "22/11/2026" }), /YYYY-MM-DD/);
 });
 
-test("GET /api/funds downloads Absa Notice Select page, caches for one week, and rejects non-GET requests", async () => {
+test("GET /api/funds downloads Absa and Unum pages, caches for one week, and rejects non-GET requests", async () => {
   const originalFetch = globalThis.fetch;
   const requestedUrls = [];
   globalThis.fetch = async (url) => {
-    requestedUrls.push(String(url));
-    return new Response(SAMPLE_ABSA_NOTICE_SELECT_HTML, {
+    const urlStr = String(url);
+    requestedUrls.push(urlStr);
+    const html = urlStr.includes("koinz.co.za") ? SAMPLE_UNUM_ALPHA_UPGRADE_HTML : SAMPLE_ABSA_NOTICE_SELECT_HTML;
+    return new Response(html, {
       status: 200,
       headers: { "Content-Type": "text/html; charset=utf-8" },
     });
@@ -103,11 +143,17 @@ test("GET /api/funds downloads Absa Notice Select page, caches for one week, and
     assert.equal(getResponse.headers.get("Cache-Control"), "public, max-age=604800");
     assert.equal(getResponse.headers.get("Access-Control-Allow-Origin"), "*");
     const payload = await getResponse.json();
-    assert.equal(payload.funds.length, 1);
+    assert.equal(payload.funds.length, 2);
     assert.equal(payload.funds[0].minimumInvestmentZar, 1000);
     assert.equal(payload.funds[0].annualRatePercent, 7.35);
     assert.equal(payload.funds[0].rateAsOf, "2026-09-25");
-    assert.deepEqual(requestedUrls, ["https://www.absa.co.za/rates-and-fees/?scrolltome=notice-select"]);
+    assert.equal(payload.funds[1].id, "unum-alpha-upgrade");
+    assert.equal(payload.funds[1].minimumInvestmentZar, null);
+    assert.equal(payload.funds[1].annualRatePercent, 18);
+    assert.deepEqual(requestedUrls.sort(), [
+      "https://koinz.co.za/alpha-upgrade-debt-fund/",
+      "https://www.absa.co.za/rates-and-fees/?scrolltome=notice-select",
+    ]);
 
     const postResponse = await worker.fetch(new Request("https://funds.example/api/funds", { method: "POST" }), {});
     assert.equal(postResponse.status, 405);

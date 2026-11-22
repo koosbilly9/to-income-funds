@@ -1,5 +1,8 @@
 const PRODUCT_ID = "absa-45-day-notice";
 const PRODUCT_SOURCE = "https://www.absa.co.za/rates-and-fees/?scrolltome=notice-select";
+const UNUM_PRODUCT_ID = "unum-alpha-upgrade";
+const UNUM_PRODUCT_SOURCE = "https://koinz.co.za/alpha-upgrade-debt-fund/";
+const UNUM_FACTSHEET_SOURCE = "https://unum.co.za/wp-content/uploads/2025/04/Alpha-Upgrade.pdf";
 const STRC_URL = "https://query1.finance.yahoo.com/v8/finance/chart/STRC?range=1y&interval=1d&events=div";
 const USD_ZAR_URL = "https://query1.finance.yahoo.com/v8/finance/chart/USDZAR=X?range=5d&interval=1d";
 const ONE_YEAR_MS = 365.25 * 86400000;
@@ -56,7 +59,7 @@ function optionsResponse() {
 function optionalNumber(value, name) {
   if (value === undefined || value === null || value === "") return null;
   const parsed = Number(value);
-  const isRate = name === "ABSA_ANNUAL_RATE_PERCENT";
+  const isRate = name.endsWith("_ANNUAL_RATE_PERCENT");
   if (!Number.isFinite(parsed) || parsed < 0 || (isRate && parsed > 100)) {
     throw new Error(isRate ? `${name} must be a number from 0 to 100` : `${name} must be a non-negative number`);
   }
@@ -171,42 +174,119 @@ export function parseAbsaNoticeSelectHtml(html, now = new Date()) {
   };
 }
 
-export function buildFundData(env = {}, now = new Date(), scraped = null) {
-  const envMinimum = optionalNumber(env.ABSA_MINIMUM_ZAR, "ABSA_MINIMUM_ZAR");
-  const envRate = optionalNumber(env.ABSA_ANNUAL_RATE_PERCENT, "ABSA_ANNUAL_RATE_PERCENT");
-  const envRateAsOf = env.ABSA_RATE_AS_OF || null;
-  if (envRateAsOf !== null && !/^\d{4}-\d{2}-\d{2}$/.test(envRateAsOf)) {
-    throw new Error("ABSA_RATE_AS_OF must use YYYY-MM-DD format");
+export function parseUnumAlphaUpgradeHtml(html, now = new Date()) {
+  if (typeof html !== "string" || !html.trim()) return null;
+  const text = stripHtml(html);
+  if (!/Alpha\s+Upgrade/i.test(text)) return null;
+
+  const rangeMatch =
+    /(?:targets?\s+an?\s+annual\s+return\s+of|annual\s+return\s+of|projected\s+returns?[^.]*?)\s*(\d+(?:\.\d+)?)\s*%\s*(?:-|–|to)\s*(\d+(?:\.\d+)?)\s*%/i.exec(
+      text,
+    );
+  if (!rangeMatch) return null;
+
+  const minRate = Number(rangeMatch[1]);
+  const maxRate = Number(rangeMatch[2]);
+  if (!Number.isFinite(minRate) || minRate <= 0 || minRate > 100 ||
+      !Number.isFinite(maxRate) || maxRate < minRate || maxRate > 100) {
+    return null;
   }
 
-  const minimumInvestmentZar = envMinimum !== null
-    ? envMinimum
-    : (scraped && Number.isFinite(scraped.minimumInvestmentZar) ? scraped.minimumInvestmentZar : null);
-  const annualRatePercent = envRate !== null
-    ? envRate
-    : (scraped && Number.isFinite(scraped.annualRatePercent) ? scraped.annualRatePercent : null);
-  const rateAsOf = envRateAsOf !== null
-    ? envRateAsOf
-    : (scraped && typeof scraped.rateAsOf === "string" ? scraped.rateAsOf : null);
+  let minimumInvestmentZar = null;
+  const minMatch = /minimum\s+(?:investment|deposit|buy-in|lump\s+sum)[^.\d]*R\s*([\d\s,]+(?:\.\d+)?)/i.exec(text);
+  if (minMatch) {
+    const parsedMin = Number(minMatch[1].replace(/[\s,]/g, ""));
+    if (Number.isFinite(parsedMin) && parsedMin >= 0) {
+      minimumInvestmentZar = parsedMin;
+    }
+  }
+
+  const dateObj = now instanceof Date ? now : new Date(now);
+  return {
+    minimumInvestmentZar,
+    annualRatePercent: minRate,
+    targetReturnMinPercent: minRate,
+    targetReturnMaxPercent: maxRate,
+    rateAsOf: dateObj.toISOString().slice(0, 10),
+  };
+}
+
+function validateIsoDate(value, name) {
+  if (value !== null && !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    throw new Error(`${name} must use YYYY-MM-DD format`);
+  }
+}
+
+export function buildFundData(env = {}, now = new Date(), scraped = null) {
+  const absaScraped = scraped && scraped.absa !== undefined ? scraped.absa : scraped;
+  const unumScraped = scraped && scraped.unum !== undefined ? scraped.unum : null;
+
+  const envAbsaMin = optionalNumber(env.ABSA_MINIMUM_ZAR, "ABSA_MINIMUM_ZAR");
+  const envAbsaRate = optionalNumber(env.ABSA_ANNUAL_RATE_PERCENT, "ABSA_ANNUAL_RATE_PERCENT");
+  const envAbsaRateAsOf = env.ABSA_RATE_AS_OF || null;
+  validateIsoDate(envAbsaRateAsOf, "ABSA_RATE_AS_OF");
+
+  const envUnumMin = optionalNumber(env.UNUM_MINIMUM_ZAR, "UNUM_MINIMUM_ZAR");
+  const envUnumRate = optionalNumber(env.UNUM_ANNUAL_RATE_PERCENT, "UNUM_ANNUAL_RATE_PERCENT");
+  const envUnumRateAsOf = env.UNUM_RATE_AS_OF || null;
+  validateIsoDate(envUnumRateAsOf, "UNUM_RATE_AS_OF");
+
+  const absaMinimumZar = envAbsaMin !== null
+    ? envAbsaMin
+    : (absaScraped && Number.isFinite(absaScraped.minimumInvestmentZar) ? absaScraped.minimumInvestmentZar : null);
+  const absaAnnualRatePercent = envAbsaRate !== null
+    ? envAbsaRate
+    : (absaScraped && Number.isFinite(absaScraped.annualRatePercent) ? absaScraped.annualRatePercent : null);
+  const absaRateAsOf = envAbsaRateAsOf !== null
+    ? envAbsaRateAsOf
+    : (absaScraped && typeof absaScraped.rateAsOf === "string" ? absaScraped.rateAsOf : null);
+
+  const unumMinimumZar = envUnumMin !== null
+    ? envUnumMin
+    : (unumScraped && Number.isFinite(unumScraped.minimumInvestmentZar) ? unumScraped.minimumInvestmentZar : null);
+  const unumAnnualRatePercent = envUnumRate !== null
+    ? envUnumRate
+    : (unumScraped && Number.isFinite(unumScraped.annualRatePercent) ? unumScraped.annualRatePercent : null);
+  const unumRateAsOf = envUnumRateAsOf !== null
+    ? envUnumRateAsOf
+    : (unumScraped && typeof unumScraped.rateAsOf === "string" ? unumScraped.rateAsOf : null);
 
   return {
     updatedAt: now.toISOString(),
     targetAnnualIncomeZar: 300000,
-    funds: [{
-      id: PRODUCT_ID,
-      name: "Absa 45-day Personal Notice",
-      category: "Notice deposit account",
-      currency: "ZAR",
-      minimumInvestmentZar,
-      annualRatePercent,
-      rateAsOf,
-      returnType: "Gross annual interest; variable rate",
-      access: "45 days' notice",
-      source: {
-        name: "Absa",
-        url: PRODUCT_SOURCE,
+    funds: [
+      {
+        id: PRODUCT_ID,
+        name: "Absa 45-day Personal Notice",
+        category: "Notice deposit account",
+        currency: "ZAR",
+        minimumInvestmentZar: absaMinimumZar,
+        annualRatePercent: absaAnnualRatePercent,
+        rateAsOf: absaRateAsOf,
+        returnType: "Gross annual interest; variable rate",
+        access: "45 days' notice",
+        source: {
+          name: "Absa",
+          url: PRODUCT_SOURCE,
+        },
       },
-    }],
+      {
+        id: UNUM_PRODUCT_ID,
+        name: "Unum Alpha Upgrade Fund",
+        category: "Alternative private debt fund · Unum Capital (kAUG)",
+        currency: "ZAR",
+        minimumInvestmentZar: unumMinimumZar,
+        annualRatePercent: unumAnnualRatePercent,
+        rateAsOf: unumRateAsOf,
+        returnType: "Target annual return (18%–25% range); variable",
+        access: "30 days' notice",
+        source: {
+          name: "Unum / Koinz",
+          url: UNUM_PRODUCT_SOURCE,
+          factsheetUrl: UNUM_FACTSHEET_SOURCE,
+        },
+      },
+    ],
   };
 }
 
@@ -358,9 +438,7 @@ async function handleFunds(request, env, ctx) {
   }
 
   const hasFullEnvOverride =
-    baseline.funds[0].minimumInvestmentZar !== null &&
-    baseline.funds[0].annualRatePercent !== null &&
-    baseline.funds[0].rateAsOf !== null;
+    baseline.funds.every((fund) => fund.minimumInvestmentZar !== null && fund.annualRatePercent !== null && fund.rateAsOf !== null);
   if (hasFullEnvOverride) {
     return jsonResponse(baseline, 200, {
       "Cache-Control": `public, max-age=${ONE_WEEK_SECONDS}`,
@@ -386,21 +464,37 @@ async function handleFunds(request, env, ctx) {
     }
   }
 
-  let scraped = null;
-  try {
-    const html = await fetchHtml(PRODUCT_SOURCE);
-    scraped = parseAbsaNoticeSelectHtml(html);
-    if (!scraped) {
+  const now = new Date();
+  const [absaResult, unumResult] = await Promise.allSettled([
+    fetchHtml(PRODUCT_SOURCE),
+    fetchHtml(UNUM_PRODUCT_SOURCE),
+  ]);
+
+  let absaScraped = null;
+  if (absaResult.status === "fulfilled") {
+    absaScraped = parseAbsaNoticeSelectHtml(absaResult.value, now);
+    if (!absaScraped) {
       console.error("Absa Notice Select rate table could not be parsed from upstream HTML");
     }
-  } catch (error) {
-    console.error("Absa rate page request failed:", error);
+  } else {
+    console.error("Absa rate page request failed:", absaResult.reason);
   }
 
-  const payload = buildFundData(env, new Date(), scraped);
+  let unumScraped = null;
+  if (unumResult.status === "fulfilled") {
+    unumScraped = parseUnumAlphaUpgradeHtml(unumResult.value, now);
+    if (!unumScraped) {
+      console.error("Unum Alpha Upgrade return range could not be parsed from upstream HTML");
+    }
+  } else {
+    console.error("Unum Alpha Upgrade page request failed:", unumResult.reason);
+  }
+
+  const payload = buildFundData(env, now, { absa: absaScraped, unum: unumScraped });
   const hasVerifiedData =
     payload.funds[0].minimumInvestmentZar !== null &&
-    payload.funds[0].annualRatePercent !== null;
+    payload.funds[0].annualRatePercent !== null &&
+    payload.funds[1].annualRatePercent !== null;
   const maxAge = hasVerifiedData ? ONE_WEEK_SECONDS : 60;
   const response = jsonResponse(payload, 200, {
     "Cache-Control": `public, max-age=${maxAge}`,

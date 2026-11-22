@@ -99,47 +99,77 @@
     });
   }
 
-  function renderFund(fund) {
+  function renderFunds(funds) {
     var targetInput = root.document.getElementById("annual-target");
     var tbody = root.document.getElementById("funds");
     var dataNoteEl = root.document.getElementById("data-note");
-    var rate = number(fund.annualRatePercent);
-    var minimumValue = number(fund.minimumInvestmentZar);
+    var list = Array.isArray(funds) ? funds : [funds];
+
+    function productMark(fund) {
+      if (fund && fund.id === "unum-alpha-upgrade") return "U";
+      return "A";
+    }
+
+    function formatReturnLabel(fund, rate) {
+      if (fund && fund.id === "unum-alpha-upgrade") {
+        return rate.toFixed(2) + "% target p.a. (18%–25%)";
+      }
+      return rate.toFixed(2) + "% gross p.a.";
+    }
 
     function update() {
       var target = number(targetInput.value);
-      var balance = requiredBalance(target, rate);
       var validTarget = Number.isFinite(target) && target > 0;
-      var validRate = Number.isFinite(rate) && rate > 0 && rate <= 100;
-      var hasRate = Number.isFinite(rate) && rate >= 0 && rate <= 100;
-      var hasMinimum = Number.isFinite(minimumValue);
-      var minimum = hasMinimum
-        ? formatRand(minimumValue)
-        : '<span class="unverified">Not verified</span>';
-      var annualReturn = hasRate ? rate.toFixed(2) + "% gross p.a." : '<span class="unverified">Not verified</span>';
-      var balanceText = validTarget && validRate ? formatRand(balance) : "—";
-      var access = typeof fund.access === "string" ? fund.access : "—";
-      tbody.innerHTML =
-        '<tr><td><div class="product"><span class="product-mark" aria-hidden="true">A</span><div><div class="product-name">' +
-        escapeHtml(fund.name) + '</div><div class="product-type">' + escapeHtml(fund.category) +
-        '</div></div></div></td><td>' + minimum + '</td><td>' + annualReturn +
-        '</td><td>' + balanceText + '</td><td>' + escapeHtml(access) + "</td></tr>";
-      if (hasRate) {
-        var dateText = typeof fund.rateAsOf === "string" ? " as of " + fund.rateAsOf : "";
-        var sourceUrl = fund.source && typeof fund.source.url === "string"
-          ? fund.source.url
-          : "https://www.absa.co.za/rates-and-fees/?scrolltome=notice-select";
-        dataNoteEl.innerHTML = "<strong>Absa Notice Select data" + escapeHtml(dateText) + ".</strong> " +
-          (hasMinimum ? "Fetched weekly from Absa's 45-day Notice Select schedule (100/0 standard rate)." : "The minimum buy-in is still unverified.") +
-          ' Confirm current terms and balance tiers with <a href="' + escapeHtml(sourceUrl) + '" target="_blank" rel="noopener">Absa</a>.';
+
+      tbody.innerHTML = list.map(function (fund) {
+        var rate = number(fund.annualRatePercent);
+        var minimumValue = number(fund.minimumInvestmentZar);
+        var balance = requiredBalance(target, rate);
+        var validRate = Number.isFinite(rate) && rate > 0 && rate <= 100;
+        var hasRate = Number.isFinite(rate) && rate >= 0 && rate <= 100;
+        var hasMinimum = Number.isFinite(minimumValue);
+        var minimum = hasMinimum
+          ? formatRand(minimumValue)
+          : '<span class="unverified">Not verified</span>';
+        var annualReturn = hasRate
+          ? formatReturnLabel(fund, rate)
+          : '<span class="unverified">Not verified</span>';
+        var balanceText = validTarget && validRate ? formatRand(balance) : "—";
+        var access = typeof fund.access === "string" ? fund.access : "—";
+        var mark = productMark(fund);
+
+        return '<tr><td><div class="product"><span class="product-mark" aria-hidden="true">' + mark +
+          '</span><div><div class="product-name">' + escapeHtml(fund.name) +
+          '</div><div class="product-type">' + escapeHtml(fund.category) +
+          '</div></div></div></td><td>' + minimum + '</td><td>' + annualReturn +
+          '</td><td>' + balanceText + '</td><td>' + escapeHtml(access) + "</td></tr>";
+      }).join("");
+
+      var absa = list.find(function (item) { return item && item.id === "absa-45-day-notice"; }) || list[0];
+      var unum = list.find(function (item) { return item && item.id === "unum-alpha-upgrade"; });
+      var absaRate = absa ? number(absa.annualRatePercent) : NaN;
+      var hasAbsaRate = Number.isFinite(absaRate) && absaRate >= 0 && absaRate <= 100;
+      var absaUrl = absa && absa.source && typeof absa.source.url === "string"
+        ? absa.source.url
+        : "https://www.absa.co.za/rates-and-fees/?scrolltome=notice-select";
+      var unumUrl = unum && unum.source && typeof unum.source.url === "string"
+        ? unum.source.url
+        : "https://koinz.co.za/alpha-upgrade-debt-fund/";
+      var unumFactsheetUrl = unum && unum.source && typeof unum.source.factsheetUrl === "string"
+        ? unum.source.factsheetUrl
+        : "https://unum.co.za/wp-content/uploads/2025/04/Alpha-Upgrade.pdf";
+
+      if (hasAbsaRate) {
+        var dateText = absa && typeof absa.rateAsOf === "string" ? " as of " + absa.rateAsOf : "";
+        dataNoteEl.innerHTML = "<strong>Weekly source data" + escapeHtml(dateText) + ".</strong> " +
+          'Absa 45-day Notice Select uses the 100/0 standard opening rate from <a href="' + escapeHtml(absaUrl) + '" target="_blank" rel="noopener">Absa</a>. ' +
+          'Unum Alpha Upgrade uses the 18% lower bound of the 18%–25% target return from <a href="' + escapeHtml(unumUrl) + '" target="_blank" rel="noopener">Unum / Koinz</a> ' +
+          '(<a href="' + escapeHtml(unumFactsheetUrl) + '" target="_blank" rel="noopener">fact sheet PDF</a>); its minimum buy-in is not publicly listed unless configured in the Worker.';
       } else {
-        var fallbackUrl = fund.source && typeof fund.source.url === "string"
-          ? fund.source.url
-          : "https://www.absa.co.za/rates-and-fees/?scrolltome=notice-select";
-        dataNoteEl.innerHTML = hasMinimum
-          ? "<strong>Rate not configured.</strong> The minimum buy-in is set in the Worker, but the current rate is still needed for an estimate."
-          : "<strong>Rate/minimum not verified.</strong> ABSA rates and opening amounts can change and may depend on the balance tier. " +
-            'Set confirmed product details in the Worker and check current terms with <a href="' + escapeHtml(fallbackUrl) + '" target="_blank" rel="noopener">Absa</a>.';
+        dataNoteEl.innerHTML =
+          "<strong>Rate/minimum not verified.</strong> Rates and opening amounts can change and may depend on balance tiers or onboarding terms. " +
+          'Check current schedules with <a href="' + escapeHtml(absaUrl) + '" target="_blank" rel="noopener">Absa</a> and ' +
+          '<a href="' + escapeHtml(unumUrl) + '" target="_blank" rel="noopener">Unum / Koinz</a>.';
       }
     }
 
@@ -223,9 +253,8 @@
     });
 
     requestFunds().then(function (payload) {
-      var fund = payload.funds.find(function (item) { return item.id === "absa-45-day-notice"; });
-      renderFund(fund);
-      status.textContent = "Absa data loaded";
+      renderFunds(payload.funds);
+      status.textContent = "Fund data loaded";
       updated.textContent = payload.updatedAt
         ? "Details loaded " + new Date(payload.updatedAt).toLocaleString()
         : "";
