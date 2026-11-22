@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en-ZA">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f7f4">
+  <title>Income funds | R300,000 a year</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --ink: #1c332d;
+      --muted: #64746d;
+      --line: #e2e8e3;
+      --paper: #f5f7f4;
+      --card: #fff;
+      --green: #237b58;
+      --green-soft: #e8f4ec;
+      --orange: #a85600;
+      --shadow: 0 16px 42px #20352b0d;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --ink: #e8efe9;
+        --muted: #9eada4;
+        --line: #293a32;
+        --paper: #101914;
+        --card: #17231c;
+        --green: #77d6a5;
+        --green-soft: #1b3929;
+        --orange: #ffb454;
+        --shadow: 0 16px 42px #0003;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { width: min(1120px, calc(100% - 36px)); margin: auto; }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px 0;
+    }
+    .brand { display: flex; align-items: center; gap: 11px; font-size: 15px; font-weight: 750; }
+    .mark { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 12px; background: var(--green); color: white; }
+    .mark svg { width: 19px; height: 19px; }
+    .status { color: var(--muted); font-size: 12px; }
+    main { padding-bottom: 30px; }
+    .hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(250px, 360px); align-items: end; gap: 32px; padding: clamp(42px, 8vw, 88px) 0 38px; }
+    .eyebrow { color: var(--green); font-size: 12px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+    h1 { max-width: 700px; margin: 9px 0 14px; font-size: clamp(40px, 7vw, 72px); line-height: .98; letter-spacing: -.055em; }
+    .hero p { max-width: 630px; margin: 0; color: var(--muted); font-size: 17px; }
+    .goal { padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); box-shadow: var(--shadow); }
+    .goal label, .rate-field label { display: block; margin-bottom: 7px; color: var(--muted); font-size: 12px; font-weight: 700; }
+    .goal-value { display: flex; align-items: center; gap: 8px; }
+    input {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--paper);
+      color: var(--ink);
+      padding: 10px 12px;
+      font: inherit;
+      font-variant-numeric: tabular-nums;
+    }
+    .goal input { width: 100%; font-size: 22px; font-weight: 750; }
+    .goal small { display: block; margin-top: 8px; color: var(--muted); font-size: 11px; }
+    .panel { overflow: hidden; border: 1px solid var(--line); border-radius: 18px; background: var(--card); box-shadow: var(--shadow); }
+    .panel + .panel { margin-top: 22px; }
+    .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 20px 22px; }
+    h2 { margin: 0; font-size: 17px; }
+    .panel-head p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .table-scroll { overflow-x: auto; }
+    table { width: 100%; min-width: 760px; border-collapse: collapse; }
+    th, td { padding: 14px 16px; border-top: 1px solid var(--line); text-align: left; vertical-align: middle; }
+    th { color: var(--muted); font-size: 11px; font-weight: 750; letter-spacing: .045em; text-transform: uppercase; }
+    td { font-variant-numeric: tabular-nums; }
+    .product { display: flex; min-width: 230px; align-items: center; gap: 11px; }
+    .product-mark { display: grid; width: 38px; height: 38px; flex: none; place-items: center; border-radius: 12px; background: var(--green-soft); color: var(--green); font-size: 12px; font-weight: 800; }
+    .product-name { font-weight: 750; }
+    .product-type { color: var(--muted); font-size: 11px; }
+    .return-input { width: 120px; }
+    .unverified { color: var(--orange); font-weight: 700; }
+    .calculation { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(220px, .7fr); gap: 22px; padding: 22px; border-top: 1px solid var(--line); }
+    .capital { padding: 22px; border-radius: 15px; background: var(--green-soft); }
+    .capital-label { color: var(--muted); font-size: 12px; font-weight: 700; }
+    .capital-value { margin: 5px 0 3px; color: var(--green); font-size: clamp(28px, 5vw, 44px); font-weight: 850; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+    .capital-note, .calculation p { margin: 0; color: var(--muted); font-size: 12px; }
+    .rate-field { align-self: center; }
+    .rate-field input { width: 100%; }
+    .notice { margin: 0; padding: 15px 22px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+    .notice strong { color: var(--ink); }
+    .source a { color: var(--green); }
+    footer { max-width: 92ch; padding: 22px 0 38px; color: var(--muted); font-size: 12px; line-height: 1.7; }
+    :focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
+    @media (max-width: 700px) {
+      .hero { grid-template-columns: 1fr; gap: 22px; }
+      .goal { max-width: 420px; }
+      .calculation { grid-template-columns: 1fr; }
+      .panel-head { align-items: flex-start; flex-direction: column; padding: 17px; }
+      .calculation { padding: 17px; }
+      .notice { padding-inline: 17px; }
+    }
+    @media (max-width: 480px) {
+      .page { width: min(100% - 24px, 1120px); }
+      header { align-items: flex-start; }
+      .status { text-align: right; }
+      h1 { font-size: 46px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <div class="brand">
+        <span class="mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M5 18V11m7 7V5m7 13v-9" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+        </span>
+        Income funds
+      </div>
+      <div class="status" id="status" role="status">Loading fund details…</div>
+    </header>
+    <main>
+      <section class="hero" aria-labelledby="page-title">
+        <div>
+          <div class="eyebrow">One product to start</div>
+          <h1 id="page-title">Plan for R300,000 a year.</h1>
+          <p>See the deposit balance that would be needed to earn your target in gross interest. Start with Absa’s 45-day Personal Notice account.</p>
+        </div>
+        <div class="goal">
+          <label for="annual-target">Annual income goal</label>
+          <div class="goal-value">
+            <span aria-hidden="true">R</span>
+            <input id="annual-target" type="number" min="1" step="1000" value="300000" inputmode="decimal">
+          </div>
+          <small>Gross interest per year, before tax. You can change this target.</small>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="funds-heading">
+        <div class="panel-head">
+          <div>
+            <h2 id="funds-heading">Starting comparison</h2>
+            <p>One South African deposit product. Add other funds when you’re ready.</p>
+          </div>
+          <div class="status" id="updated" aria-live="polite"></div>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Product</th>
+                <th scope="col">Minimum buy-in</th>
+                <th scope="col">Annual return</th>
+                <th scope="col">Balance for goal</th>
+                <th scope="col">Access</th>
+              </tr>
+            </thead>
+            <tbody id="funds">
+              <tr><td colspan="5">Loading fund details…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="calculation">
+          <div class="capital">
+            <div class="capital-label">Estimated balance to earn <span id="goal-caption">R300,000</span> per year</div>
+            <div class="capital-value" id="required-balance" aria-live="polite">Enter a verified rate</div>
+            <p class="capital-note" id="calculation-note">The current ABSA rate has not been verified.</p>
+          </div>
+          <div class="rate-field">
+            <label for="annual-rate">Annual interest rate (% gross p.a.)</label>
+            <input id="annual-rate" type="number" min="0" max="100" step="0.01" inputmode="decimal" placeholder="Enter rate from Absa">
+          </div>
+        </div>
+        <p class="notice" id="data-note" role="status"><strong>Rate/minimum not verified.</strong> ABSA rates and opening amounts can change and may depend on the balance tier. Enter the current published rate above; set confirmed product details in the Worker before relying on them.</p>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>How to read this estimate</h2>
+            <p>Transparent calculation, not a forecast.</p>
+          </div>
+        </div>
+        <p class="notice source">
+          Required balance = annual income goal ÷ annual interest rate. This is a simple gross estimate: it assumes the entered rate stays unchanged for a full year and excludes tax, fees, compounding, and rate tiers. A 45-day notice account is a bank deposit product, not a unit trust or guaranteed investment return. Check current terms directly with <a href="https://www.absa.co.za/personal/" target="_blank" rel="noopener">Absa</a>.
+        </p>
+      </section>
+    </main>
+    <footer>
+      For information only, not financial advice. This estimate does not guarantee an income or account eligibility. Confirm the current rate, minimum balance, interest calculation, tax treatment, and withdrawal terms with Absa before making a decision.
+    </footer>
+  </div>
+  <script src="/app.js" defer></script>
+</body>
+</html>
