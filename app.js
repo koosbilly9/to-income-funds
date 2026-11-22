@@ -4,6 +4,15 @@
   var DEFAULT_TARGET = 300000;
   var SETTINGS_KEY = "income-funds-settings-v1";
   var WORKER_URL = "https://investment-funds.koosbilly9.workers.dev";
+  var dividendShareRows = {
+    strc: '<tr><td colspan="5">Loading STRC price and dividend history…</td></tr>',
+    jse: '<tr><td colspan="5">Loading JSE share prices and dividend history…</td></tr>'
+  };
+
+  function renderDividendShareRows() {
+    var tbody = root.document.getElementById("dividend-shares");
+    tbody.innerHTML = dividendShareRows.strc + dividendShareRows.jse;
+  }
 
   function apiUrl(path, hostname) {
     var host = typeof hostname === "string"
@@ -232,7 +241,6 @@
 
   function renderStrc(data) {
     var targetInput = root.document.getElementById("annual-target");
-    var tbody = root.document.getElementById("strc");
     var note = root.document.getElementById("strc-note");
     var updated = root.document.getElementById("strc-updated");
 
@@ -249,11 +257,12 @@
       var yieldText = hasYield
         ? yieldPercent.toFixed(2) + "%"
         : '<span class="unverified">Unavailable</span>';
-      tbody.innerHTML =
+      dividendShareRows.strc =
         '<tr><td><div class="product"><span class="product-mark" aria-hidden="true">S</span><div><div class="product-name"><a href="https://finance.yahoo.com/quote/STRC/" target="_blank" rel="noopener">Strategy Inc.</a></div>' +
         '<div class="product-type">Variable Rate Series A Perpetual Stretch · <a href="https://finance.yahoo.com/quote/STRC/" target="_blank" rel="noopener">STRC</a></div></div></div></td>' +
         '<td>' + formatUsd(number(data.priceUsd)) + '</td><td>' + yieldText + '</td><td>' + shareCount +
         '</td><td>' + costText + "</td></tr>";
+      renderDividendShareRows();
 
       if (shares === null) {
         note.textContent = "A complete trailing dividend history and a current USD/ZAR rate are needed to estimate target shares.";
@@ -276,13 +285,11 @@
 
   function renderJseShares(shares, updatedAt) {
     var targetInput = root.document.getElementById("annual-target");
-    var tbody = root.document.getElementById("jse-shares");
     var note = root.document.getElementById("jse-shares-note");
-    var updated = root.document.getElementById("jse-shares-updated");
 
     function update() {
       var target = number(targetInput.value);
-      tbody.innerHTML = shares.map(function (share) {
+      dividendShareRows.jse = shares.map(function (share) {
         var price = number(share.priceZar);
         var dividend = number(share.trailingDividendPerShareZar);
         var yieldPercent = number(share.trailingDividendYieldPercent);
@@ -302,19 +309,18 @@
           '<div class="product-name"><a href="' + escapeHtml(share.sourceUrl) + '" target="_blank" rel="noopener">' +
           escapeHtml(share.name) + '</a></div><div class="product-type">' + escapeHtml(share.ticker) +
           ' · JSE</div></div></div></td><td>' + formatRandShareAmount(price) + '</td><td>' +
-          (hasDividend ? formatRandShareAmount(dividend) : '<span class="unverified">Unavailable</span>') +
-          '</td><td>' + yieldText + '</td><td>' + countText + '</td><td>' +
+          yieldText + '</td><td>' + countText + '</td><td>' +
           (cost === null ? "—" : formatRand(cost)) + "</td></tr>";
       }).join("");
+      renderDividendShareRows();
 
-      note.textContent = "Trailing 12-month dividends per share are added from Yahoo Finance events and compared with the current share price. " +
-        "A yield above 13% is historical, not a forecast; it may include one-off payouts and can fall if dividends or share prices change. " +
-        "Estimated share counts use this historical payout and exclude fees and taxes.";
+      var updateText = updatedAt
+        ? " JSE data updated " + new Date(updatedAt).toLocaleString() + "."
+        : "";
+      note.textContent = "JSE trailing 12-month dividends per share are added from Yahoo Finance events and compared with the current share price." +
+        updateText + " A yield above 13% is historical, not a forecast; it may include one-off payouts and can fall if dividends or share prices change. Estimated share counts use this historical payout; costs exclude fees and taxes.";
     }
 
-    updated.textContent = updatedAt
-      ? "Market data updated " + new Date(updatedAt).toLocaleString()
-      : "Market data loaded";
     targetInput.addEventListener("input", update);
     update();
   }
@@ -382,8 +388,9 @@
     }).catch(function (error) {
       console.error("Could not load STRC market data:", error);
       root.document.getElementById("strc-updated").textContent = "Could not load share data";
-      root.document.getElementById("strc").innerHTML =
-        '<tr><td colspan="4">STRC price and dividend data could not be loaded.</td></tr>';
+      dividendShareRows.strc =
+        '<tr><td colspan="5">STRC price and dividend data could not be loaded.</td></tr>';
+      renderDividendShareRows();
       root.document.getElementById("strc-note").textContent = error.message;
     });
 
@@ -391,9 +398,9 @@
       renderJseShares(payload.shares, payload.updatedAt);
     }).catch(function (error) {
       console.error("Could not load JSE share market data:", error);
-      root.document.getElementById("jse-shares-updated").textContent = "Could not load JSE share data";
-      root.document.getElementById("jse-shares").innerHTML =
-        '<tr><td colspan="6">JSE share price and dividend data could not be loaded.</td></tr>';
+      dividendShareRows.jse =
+        '<tr><td colspan="5">JSE share price and dividend data could not be loaded.</td></tr>';
+      renderDividendShareRows();
       root.document.getElementById("jse-shares-note").textContent = error.message;
     });
   }
