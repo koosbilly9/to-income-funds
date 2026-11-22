@@ -24,6 +24,8 @@ The Absa balance estimate is `annual income goal / (annual interest rate / 100)`
 
 The STRC frame loads the share price, trailing 12-month dividend events, and USD/ZAR conversion from Yahoo Finance through `/api/strc`. Dividend yield is trailing dividends per share divided by the latest share price. Target shares are rounded up from the ZAR income goal converted to USD and divided by trailing dividends per share. Estimated rand cost is target shares multiplied by the USD share price and current USD/ZAR conversion; it excludes fees and taxes. This is a historical estimate, not a forward payout promise; distributions and exchange rates can change. The Worker caches the quote response for five minutes.
 
+The JSE share frame loads `MRF.JO` (Merafe Resources), `TBS.JO` (Tiger Brands), and `CAT.JO` (Caxton and CTP) prices and dividend events from Yahoo Finance through `/api/jse-shares`. Yahoo reports these JSE prices and dividends in cents (`ZAc`); the Worker converts both to rand before calculating the trailing 12-month dividend yield and target share count. Yields above 13% are highlighted. Trailing yields can include one-off distributions and must not be interpreted as expected or guaranteed future returns. The Worker caches JSE quotes for five minutes.
+
 The annual income goal is editable and saved in the current browser only. The PM summary divides the annual goal by 12, estimates tax at 20% of the annual goal divided by 12, and shows the remaining monthly net. This is illustrative only; actual tax depends on personal circumstances.
 
 ## Run and deploy

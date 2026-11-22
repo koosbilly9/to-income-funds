@@ -7,6 +7,12 @@ const UNUM_DEFAULT_MINIMUM_ZAR = 50000;
 const UNUM_DEFAULT_ANNUAL_RATE_PERCENT = 18.4;
 const STRC_URL = "https://query1.finance.yahoo.com/v8/finance/chart/STRC?range=1y&interval=1d&events=div";
 const USD_ZAR_URL = "https://query1.finance.yahoo.com/v8/finance/chart/USDZAR=X?range=5d&interval=1d";
+const JSE_SHARES = [
+  { symbol: "MRF.JO", ticker: "MRF", name: "Merafe Resources Limited" },
+  { symbol: "TBS.JO", ticker: "TBS", name: "Tiger Brands Limited" },
+  { symbol: "CAT.JO", ticker: "CAT", name: "Caxton and CTP Publishers and Printers Limited" },
+];
+const JSE_SHARE_URL = "https://query1.finance.yahoo.com/v8/finance/chart/";
 const ONE_YEAR_MS = 365.25 * 86400000;
 const ONE_WEEK_SECONDS = 7 * 86400;
 const UPSTREAM_HEADERS = {
@@ -349,6 +355,50 @@ export function buildStrcData(stockPayload, fxPayload, now = Date.now()) {
   };
 }
 
+export function buildJseShareData(payload, share, now = Date.now()) {
+  const stock = chartResult(payload, share.symbol);
+  const priceCents = Number(stock.meta && stock.meta.regularMarketPrice);
+  const priceTime = Number(stock.meta && stock.meta.regularMarketTime);
+  if (stock.meta.currency !== "ZAc" || !Number.isFinite(priceCents) || priceCents <= 0 ||
+      !Number.isSafeInteger(priceTime)) {
+    throw new Error(`${share.symbol} quote data was invalid`);
+  }
+
+  const nowMs = now instanceof Date ? now.getTime() : now;
+  const cutoff = Math.floor((nowMs - ONE_YEAR_MS) / 1000);
+  const dividendEvents = stock.events && stock.events.dividends
+    ? Object.values(stock.events.dividends)
+    : [];
+  let trailingDividendCents = 0;
+  let eventCount = 0;
+  for (const event of dividendEvents) {
+    const date = Number(event && event.date);
+    const amount = Number(event && event.amount);
+    if (Number.isSafeInteger(date) && date >= cutoff && date <= nowMs / 1000 &&
+        Number.isFinite(amount) && amount > 0) {
+      trailingDividendCents += amount;
+      eventCount++;
+    }
+  }
+  const priceZar = priceCents / 100;
+  const trailingDividendPerShareZar = eventCount ? trailingDividendCents / 100 : null;
+
+  return {
+    symbol: share.symbol,
+    ticker: share.ticker,
+    name: share.name,
+    priceZar,
+    priceAsOf: new Date(priceTime * 1000).toISOString(),
+    trailingDividendPerShareZar,
+    trailingDividendEvents: eventCount,
+    trailingDividendYieldPercent: trailingDividendPerShareZar === null
+      ? null
+      : trailingDividendPerShareZar / priceZar * 100,
+    source: "Yahoo Finance",
+    sourceUrl: `https://finance.yahoo.com/quote/${share.symbol}/`,
+  };
+}
+
 async function fetchJson(url) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12000);
@@ -362,6 +412,52 @@ async function fetchJson(url) {
     return await response.json();
   } finally {
     clearTimeout(timer);
+  }
+}
+
+async function handleJseShares(request, ctx) {
+  const cache = typeof caches !== "undefined" && caches ? caches.default : null;
+  const cacheKey = new Request(new URL("/api/jse-shares?v=1", request.url), { method: "GET" });
+  if (cache) {
+    try {
+      const cached = await cache.match(cacheKey);
+      if (cached) {
+        const headers = new Headers(cached.headers);
+        headers.set("Access-Control-Allow-Origin", "*");
+        return new Response(cached.body, {
+          status: cached.status,
+          statusText: cached.statusText,
+          headers,
+        });
+      }
+    } catch (error) {
+      console.error("JSE share cache lookup failed:", error);
+    }
+  }
+
+  try {
+    const shares = await Promise.all(JSE_SHARES.map(async (share) => {
+      const payload = await fetchJson(`${JSE_SHARE_URL}${share.symbol}?range=1y&interval=1d&events=div`);
+      return buildJseShareData(payload, share);
+    }));
+    const response = jsonResponse({
+      updatedAt: new Date().toISOString(),
+      shares,
+    }, 200, { "Cache-Control": "public, max-age=300" });
+    if (cache) {
+      const putPromise = cache.put(cacheKey, response.clone()).catch((error) => {
+        console.error("JSE share cache write failed:", error);
+      });
+      if (ctx && typeof ctx.waitUntil === "function") {
+        ctx.waitUntil(putPromise);
+      } else {
+        await putPromise;
+      }
+    }
+    return response;
+  } catch (error) {
+    console.error("JSE share market data request failed:", error);
+    return jsonResponse({ error: "JSE share market data is unavailable" }, 502);
   }
 }
 
@@ -519,7 +615,8 @@ async function handleFunds(request, env, ctx) {
 export default {
   async fetch(request, env = {}, ctx) {
     const url = new URL(request.url);
-    if ((url.pathname === "/api/funds" || url.pathname === "/api/strc") && request.method === "OPTIONS") {
+    if ((url.pathname === "/api/funds" || url.pathname === "/api/strc" ||
+         url.pathname === "/api/jse-shares") && request.method === "OPTIONS") {
       return optionsResponse();
     }
     if (url.pathname === "/api/funds") {
@@ -533,6 +630,12 @@ export default {
         return jsonResponse({ error: "Method not allowed" }, 405, { Allow: "GET" });
       }
       return handleStrc(request, ctx);
+    }
+    if (url.pathname === "/api/jse-shares") {
+      if (request.method !== "GET") {
+        return jsonResponse({ error: "Method not allowed" }, 405, { Allow: "GET" });
+      }
+      return handleJseShares(request, ctx);
     }
 
     if (url.pathname.startsWith("/api/")) {

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import worker, {
   buildFundData,
+  buildJseShareData,
   buildStrcData,
   parseAbsaNoticeSelectHtml,
   parseUnumAlphaUpgradeHtml,
@@ -233,6 +234,56 @@ test("rejects malformed or mismatched STRC quote data", () => {
   ), /STRC chart response was invalid/);
 });
 
+test("builds JSE trailing dividend yields from cent-denominated quotes and dividend events", () => {
+  const now = new Date("2026-11-22T12:00:00.000Z");
+  const nowSeconds = Math.floor(now.getTime() / 1000);
+  const result = buildJseShareData({
+    chart: {
+      result: [{
+        meta: {
+          symbol: "MRF.JO",
+          currency: "ZAc",
+          regularMarketPrice: 135,
+          regularMarketTime: nowSeconds - 3600,
+        },
+        events: {
+          dividends: {
+            recent: { date: nowSeconds - 30 * 86400, amount: 16 },
+            older: { date: nowSeconds - 250 * 86400, amount: 8 },
+            expired: { date: nowSeconds - 366 * 86400, amount: 50 },
+            future: { date: nowSeconds + 86400, amount: 20 },
+          },
+        },
+      }],
+    },
+  }, {
+    symbol: "MRF.JO",
+    ticker: "MRF",
+    name: "Merafe Resources Limited",
+  }, now);
+
+  assert.equal(result.priceZar, 1.35);
+  assert.equal(result.trailingDividendPerShareZar, 0.24);
+  assert.equal(result.trailingDividendYieldPercent, 0.24 / 1.35 * 100);
+  assert.equal(result.trailingDividendEvents, 2);
+  assert.equal(result.sourceUrl, "https://finance.yahoo.com/quote/MRF.JO/");
+});
+
+test("rejects JSE quote data reported in an unexpected currency", () => {
+  assert.throws(() => buildJseShareData({
+    chart: {
+      result: [{
+        meta: {
+          symbol: "MRF.JO",
+          currency: "ZAR",
+          regularMarketPrice: 1.35,
+          regularMarketTime: Math.floor(Date.now() / 1000),
+        },
+      }],
+    },
+  }, { symbol: "MRF.JO", ticker: "MRF", name: "Merafe Resources Limited" }), /quote data was invalid/);
+});
+
 test("GET /api/strc fetches current quotes and returns a five-minute cache header", async () => {
   const originalFetch = globalThis.fetch;
   const nowSeconds = Math.floor(Date.now() / 1000);
@@ -271,6 +322,58 @@ test("GET /api/strc fetches current quotes and returns a five-minute cache heade
       "https://query1.finance.yahoo.com/v8/finance/chart/STRC?range=1y&interval=1d&events=div",
       "https://query1.finance.yahoo.com/v8/finance/chart/USDZAR=X?range=5d&interval=1d",
     ]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("GET /api/jse-shares fetches the three JSE tickers and returns a five-minute cache header", async () => {
+  const originalFetch = globalThis.fetch;
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const prices = { "MRF.JO": 135, "TBS.JO": 26132, "CAT.JO": 1190 };
+  const requestedUrls = [];
+  globalThis.fetch = async (url) => {
+    const urlString = String(url);
+    requestedUrls.push(urlString);
+    const symbol = Object.keys(prices).find((ticker) => urlString.includes(`/${ticker}?`));
+    return Response.json({
+      chart: {
+        result: [{
+          meta: {
+            symbol,
+            currency: "ZAc",
+            regularMarketPrice: prices[symbol],
+            regularMarketTime: nowSeconds,
+          },
+          events: {
+            dividends: {
+              recent: { date: nowSeconds - 86400, amount: 100 },
+            },
+          },
+        }],
+      },
+    });
+  };
+  try {
+    const response = await worker.fetch(new Request("https://funds.example/api/jse-shares"), {});
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("Cache-Control"), "public, max-age=300");
+    assert.equal(response.headers.get("Access-Control-Allow-Origin"), "*");
+    const data = await response.json();
+    assert.deepEqual(data.shares.map((share) => share.ticker), ["MRF", "TBS", "CAT"]);
+    assert.equal(data.shares[0].priceZar, 1.35);
+    assert.deepEqual(requestedUrls.sort(), [
+      "https://query1.finance.yahoo.com/v8/finance/chart/CAT.JO?range=1y&interval=1d&events=div",
+      "https://query1.finance.yahoo.com/v8/finance/chart/MRF.JO?range=1y&interval=1d&events=div",
+      "https://query1.finance.yahoo.com/v8/finance/chart/TBS.JO?range=1y&interval=1d&events=div",
+    ]);
+
+    const postResponse = await worker.fetch(
+      new Request("https://funds.example/api/jse-shares", { method: "POST" }),
+      {},
+    );
+    assert.equal(postResponse.status, 405);
+    assert.equal(postResponse.headers.get("Allow"), "GET");
   } finally {
     globalThis.fetch = originalFetch;
   }

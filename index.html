@@ -97,6 +97,7 @@
     .product-type { color: var(--muted); font-size: 11px; }
     .product-type a { color: var(--green); }
     .unverified { color: var(--orange); font-weight: 700; }
+    .yield-qualifier { display: inline-block; margin-left: 4px; color: var(--green); font-size: 10px; font-weight: 800; white-space: nowrap; }
     .notice { margin: 0; padding: 15px 22px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
     .notice strong { color: var(--ink); }
     .notice a, footer a { color: var(--green); }
@@ -180,6 +181,36 @@
         <p class="notice" id="data-note" role="status"><strong>Rate/minimum not verified.</strong> Rates and opening amounts can change and may depend on balance tiers or onboarding terms. Check current schedules with <a href="https://www.absa.co.za/rates-and-fees/?scrolltome=notice-select" target="_blank" rel="noopener">Absa</a> and <a href="https://koinz.co.za/alpha-upgrade-debt-fund/" target="_blank" rel="noopener">Unum / Koinz</a>.</p>
       </section>
 
+      <section class="panel" aria-labelledby="jse-shares-heading">
+        <div class="panel-head">
+          <div>
+            <h2 id="jse-shares-heading">JSE dividend-paying shares</h2>
+            <p>MRF · Merafe Resources, TBS · Tiger Brands, and CAT · Caxton CTP. Highlighting trailing yields above 13%.</p>
+          </div>
+          <div class="status" id="jse-shares-updated" role="status">Loading JSE share data…</div>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Company and ticker</th>
+                <th scope="col">Share price</th>
+                <th scope="col">Dividends per share (TTM)</th>
+                <th scope="col">Yield (TTM)</th>
+                <th scope="col">Target shares</th>
+                <th scope="col">Estimated cost</th>
+              </tr>
+            </thead>
+            <tbody id="jse-shares">
+              <tr><td colspan="6">Loading JSE share prices and dividend history…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="notice" id="jse-shares-note" role="status">
+          Trailing 12-month dividends are historical. The yield can include one-off payouts and is not a forecast of future income.
+        </p>
+      </section>
+
       <section class="panel" aria-labelledby="shares-heading">
         <div class="panel-head">
           <div>
@@ -210,9 +241,9 @@
       </section>
     </main>
     <footer>
-      Absa 45-day Notice Select rates and minimum deposit are fetched weekly from <a href="https://www.absa.co.za/rates-and-fees/?scrolltome=notice-select" target="_blank" rel="noopener">Absa Rates and Fees</a>. Unum Alpha Upgrade Fund uses a R50,000 minimum investment and 18.4% annual return rate (within the 18%–25% target annual return range verified weekly from <a href="https://koinz.co.za/alpha-upgrade-debt-fund/" target="_blank" rel="noopener">Unum / Koinz</a> and the <a href="https://unum.co.za/wp-content/uploads/2025/04/Alpha-Upgrade.pdf" target="_blank" rel="noopener">fact sheet PDF</a>). STRC price, reported dividends, and USD/ZAR are fetched from <a href="https://finance.yahoo.com/quote/STRC/" target="_blank" rel="noopener">Yahoo Finance</a>. Target returns and trailing dividend yields are not promised forward rates. Dividend, price, exchange-rate, credit, tax, and fee changes can materially affect income. For information only, not financial advice.
+      Absa 45-day Notice Select rates and minimum deposit are fetched weekly from <a href="https://www.absa.co.za/rates-and-fees/?scrolltome=notice-select" target="_blank" rel="noopener">Absa Rates and Fees</a>. Unum Alpha Upgrade Fund uses a R50,000 minimum investment and 18.4% annual return rate (within the 18%–25% target annual return range verified weekly from <a href="https://koinz.co.za/alpha-upgrade-debt-fund/" target="_blank" rel="noopener">Unum / Koinz</a> and the <a href="https://unum.co.za/wp-content/uploads/2025/04/Alpha-Upgrade.pdf" target="_blank" rel="noopener">fact sheet PDF</a>). STRC and JSE share prices and reported dividend events for MRF, TBS, and CAT are fetched from <a href="https://finance.yahoo.com/" target="_blank" rel="noopener">Yahoo Finance</a>. Trailing dividend yields are historical, not promised forward rates. Dividend, price, exchange-rate, credit, tax, and fee changes can materially affect income. For information only, not financial advice.
     </footer>
   </div>
-  <script src="./app.js?v=unum-3" defer></script>
+  <script src="./app.js?v=jse-dividends-1" defer></script>
 </body>
 </html>

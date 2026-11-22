@@ -37,6 +37,16 @@
     }).format(value);
   }
 
+  function formatRandShareAmount(value) {
+    if (!Number.isFinite(value)) return "—";
+    return new Intl.NumberFormat("en-ZA", {
+      style: "currency",
+      currency: "ZAR",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(value);
+  }
+
   function requiredBalance(target, annualRatePercent) {
     if (!Number.isFinite(target) || target <= 0 ||
         !Number.isFinite(annualRatePercent) || annualRatePercent <= 0) {
@@ -105,6 +115,27 @@
           !Number.isFinite(number(payload.priceUsd)) ||
           !Number.isFinite(number(payload.usdZar))) {
         throw new Error("STRC market data response was invalid");
+      }
+      return payload;
+    });
+  }
+
+  function requestJseShares() {
+    return root.fetch(apiUrl("/api/jse-shares?v=1"), { headers: { Accept: "application/json" } }).then(function (response) {
+      if (!response.ok) throw new Error("JSE share market data request failed (HTTP " + response.status + ")");
+      return response.json();
+    }).then(function (payload) {
+      var expectedSymbols = ["MRF.JO", "TBS.JO", "CAT.JO"];
+      if (!payload || !Array.isArray(payload.shares) ||
+          !expectedSymbols.every(function (symbol) {
+            return payload.shares.some(function (share) {
+              return share && share.symbol === symbol &&
+                Number.isFinite(number(share.priceZar)) &&
+                (share.trailingDividendPerShareZar === null ||
+                  Number.isFinite(number(share.trailingDividendPerShareZar)));
+            });
+          })) {
+        throw new Error("JSE share market data response was invalid");
       }
       return payload;
     });
@@ -243,6 +274,51 @@
     update();
   }
 
+  function renderJseShares(shares, updatedAt) {
+    var targetInput = root.document.getElementById("annual-target");
+    var tbody = root.document.getElementById("jse-shares");
+    var note = root.document.getElementById("jse-shares-note");
+    var updated = root.document.getElementById("jse-shares-updated");
+
+    function update() {
+      var target = number(targetInput.value);
+      tbody.innerHTML = shares.map(function (share) {
+        var price = number(share.priceZar);
+        var dividend = number(share.trailingDividendPerShareZar);
+        var yieldPercent = number(share.trailingDividendYieldPercent);
+        var validYield = Number.isFinite(yieldPercent) && yieldPercent >= 0;
+        var hasDividend = Number.isFinite(dividend) && dividend > 0;
+        var count = hasDividend ? targetShares(target, dividend, 1) : null;
+        var cost = count === null ? null : totalShareCostZar(count, price, 1);
+        var countText = count === null
+          ? "—"
+          : new Intl.NumberFormat("en-ZA", { maximumFractionDigits: 0 }).format(count);
+        var yieldText = validYield
+          ? yieldPercent.toFixed(2) + "%" +
+            (yieldPercent > 13 ? ' <span class="yield-qualifier">Above 13%</span>' : "")
+          : '<span class="unverified">Unavailable</span>';
+
+        return '<tr><td><div class="product"><span class="product-mark" aria-hidden="true">J</span><div>' +
+          '<div class="product-name"><a href="' + escapeHtml(share.sourceUrl) + '" target="_blank" rel="noopener">' +
+          escapeHtml(share.name) + '</a></div><div class="product-type">' + escapeHtml(share.ticker) +
+          ' · JSE</div></div></div></td><td>' + formatRandShareAmount(price) + '</td><td>' +
+          (hasDividend ? formatRandShareAmount(dividend) : '<span class="unverified">Unavailable</span>') +
+          '</td><td>' + yieldText + '</td><td>' + countText + '</td><td>' +
+          (cost === null ? "—" : formatRand(cost)) + "</td></tr>";
+      }).join("");
+
+      note.textContent = "Trailing 12-month dividends per share are added from Yahoo Finance events and compared with the current share price. " +
+        "A yield above 13% is historical, not a forecast; it may include one-off payouts and can fall if dividends or share prices change. " +
+        "Estimated share counts use this historical payout and exclude fees and taxes.";
+    }
+
+    updated.textContent = updatedAt
+      ? "Market data updated " + new Date(updatedAt).toLocaleString()
+      : "Market data loaded";
+    targetInput.addEventListener("input", update);
+    update();
+  }
+
   function formatUsd(value) {
     if (!Number.isFinite(value)) return "—";
     return new Intl.NumberFormat("en-US", {
@@ -309,6 +385,16 @@
       root.document.getElementById("strc").innerHTML =
         '<tr><td colspan="4">STRC price and dividend data could not be loaded.</td></tr>';
       root.document.getElementById("strc-note").textContent = error.message;
+    });
+
+    requestJseShares().then(function (payload) {
+      renderJseShares(payload.shares, payload.updatedAt);
+    }).catch(function (error) {
+      console.error("Could not load JSE share market data:", error);
+      root.document.getElementById("jse-shares-updated").textContent = "Could not load JSE share data";
+      root.document.getElementById("jse-shares").innerHTML =
+        '<tr><td colspan="6">JSE share price and dividend data could not be loaded.</td></tr>';
+      root.document.getElementById("jse-shares-note").textContent = error.message;
     });
   }
 
