@@ -7,7 +7,7 @@ A lightweight static comparison page served by the `investment-funds` Cloudflare
 The page distinguishes the notice deposit account from the alternative private debt fund. Through `/api/funds`, the Worker downloads both product pages and caches the parsed result for one week (`604800` seconds):
 
 1. **Absa 45-day Personal Notice** (`https://www.absa.co.za/rates-and-fees/?scrolltome=notice-select`): extracts the `notice-select` section's Standard Rate `100/0` (100% 45-day notice) rate for the opening substantive balance tier (`R1,000+`), minimum deposit (`R1,000`), and review date.
-2. **Unum Alpha Upgrade Fund** (`https://koinz.co.za/alpha-upgrade-debt-fund/`, with reference to the [Unum Capital fact sheet PDF](https://unum.co.za/wp-content/uploads/2025/04/Alpha-Upgrade.pdf)): extracts the target annual return range (`18% – 25%`) and uses the conservative `18%` lower bound. Because Unum/Koinz do not publish a public retail minimum investment on the webpage, `minimumInvestmentZar` remains unverified (`null`) unless configured.
+2. **Unum Alpha Upgrade Fund** (`https://koinz.co.za/alpha-upgrade-debt-fund/`, with reference to the [Unum Capital fact sheet PDF](https://unum.co.za/wp-content/uploads/2025/04/Alpha-Upgrade.pdf)): verifies the `18% – 25%` target annual return range and uses an `18.4%` annual return rate with a `R50,000` minimum buy-in.
 
 If an upstream page cannot be fetched or parsed and no override variables are set, its figures remain unverified rather than guessed.
 
@@ -16,8 +16,8 @@ To override the scraped figures manually, set these non-secret Wrangler variable
 - `ABSA_MINIMUM_ZAR`: verified Absa minimum opening amount in rand.
 - `ABSA_ANNUAL_RATE_PERCENT`: verified Absa gross annual rate, as a percentage (for example, `7.35` for 7.35%).
 - `ABSA_RATE_AS_OF`: date the Absa rate was checked, in `YYYY-MM-DD` format.
-- `UNUM_MINIMUM_ZAR`: verified Unum Alpha Upgrade minimum investment in rand.
-- `UNUM_ANNUAL_RATE_PERCENT`: verified Unum Alpha Upgrade annual return percentage (for example, `18` for 18%).
+- `UNUM_MINIMUM_ZAR`: verified Unum Alpha Upgrade minimum investment in rand (configured to `50000`).
+- `UNUM_ANNUAL_RATE_PERCENT`: verified Unum Alpha Upgrade annual return percentage (configured to `18.4` for 18.4%).
 - `UNUM_RATE_AS_OF`: date the Unum rate was checked, in `YYYY-MM-DD` format.
 
 The Absa balance estimate is `annual income goal / (annual interest rate / 100)`. It estimates gross simple interest for a year at the configured constant rate and excludes tax, fees, compounding, and rate tiers.

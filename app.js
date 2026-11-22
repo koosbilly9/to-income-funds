@@ -90,7 +90,7 @@
   }
 
   function requestFunds() {
-    return root.fetch(apiUrl("/api/funds?v=2"), { headers: { Accept: "application/json" } }).then(function (response) {
+    return root.fetch(apiUrl("/api/funds?v=3"), { headers: { Accept: "application/json" } }).then(function (response) {
       if (!response.ok) throw new Error("Fund details request failed (HTTP " + response.status + ")");
       return response.json();
     }).then(validFundPayload);
@@ -121,6 +121,16 @@
       return "A";
     }
 
+    function productUrl(fund) {
+      if (fund && fund.source && typeof fund.source.url === "string" && fund.source.url) {
+        return fund.source.url;
+      }
+      if (fund && fund.id === "unum-alpha-upgrade") {
+        return "https://koinz.co.za/alpha-upgrade-debt-fund/";
+      }
+      return "https://www.absa.co.za/rates-and-fees/?scrolltome=notice-select";
+    }
+
     function formatReturnLabel(fund, rate) {
       if (fund && fund.id === "unum-alpha-upgrade") {
         return rate.toFixed(2) + "% target p.a. (18%–25%)";
@@ -148,10 +158,11 @@
         var balanceText = validTarget && validRate ? formatRand(balance) : "—";
         var access = typeof fund.access === "string" ? fund.access : "—";
         var mark = productMark(fund);
+        var url = productUrl(fund);
 
         return '<tr><td><div class="product"><span class="product-mark" aria-hidden="true">' + mark +
-          '</span><div><div class="product-name">' + escapeHtml(fund.name) +
-          '</div><div class="product-type">' + escapeHtml(fund.category) +
+          '</span><div><div class="product-name"><a href="' + escapeHtml(url) + '" target="_blank" rel="noopener">' +
+          escapeHtml(fund.name) + '</a></div><div class="product-type">' + escapeHtml(fund.category) +
           '</div></div></div></td><td>' + minimum + '</td><td>' + annualReturn +
           '</td><td>' + balanceText + '</td><td>' + escapeHtml(access) + "</td></tr>";
       }).join("");
@@ -174,8 +185,8 @@
         var dateText = absa && typeof absa.rateAsOf === "string" ? " as of " + absa.rateAsOf : "";
         dataNoteEl.innerHTML = "<strong>Weekly source data" + escapeHtml(dateText) + ".</strong> " +
           'Absa 45-day Notice Select uses the 100/0 standard opening rate from <a href="' + escapeHtml(absaUrl) + '" target="_blank" rel="noopener">Absa</a>. ' +
-          'Unum Alpha Upgrade uses the 18% lower bound of the 18%–25% target return from <a href="' + escapeHtml(unumUrl) + '" target="_blank" rel="noopener">Unum / Koinz</a> ' +
-          '(<a href="' + escapeHtml(unumFactsheetUrl) + '" target="_blank" rel="noopener">fact sheet PDF</a>); its minimum buy-in is not publicly listed unless configured in the Worker.';
+          'Unum Alpha Upgrade uses a R50,000 minimum buy-in and 18.4% annual return rate (within the 18%–25% target range) from <a href="' + escapeHtml(unumUrl) + '" target="_blank" rel="noopener">Unum / Koinz</a> ' +
+          '(<a href="' + escapeHtml(unumFactsheetUrl) + '" target="_blank" rel="noopener">fact sheet PDF</a>).';
       } else {
         dataNoteEl.innerHTML =
           "<strong>Rate/minimum not verified.</strong> Rates and opening amounts can change and may depend on balance tiers or onboarding terms. " +
@@ -208,7 +219,7 @@
         ? yieldPercent.toFixed(2) + "%"
         : '<span class="unverified">Unavailable</span>';
       tbody.innerHTML =
-        '<tr><td><div class="product"><span class="product-mark" aria-hidden="true">S</span><div><div class="product-name">Strategy Inc.</div>' +
+        '<tr><td><div class="product"><span class="product-mark" aria-hidden="true">S</span><div><div class="product-name"><a href="https://finance.yahoo.com/quote/STRC/" target="_blank" rel="noopener">Strategy Inc.</a></div>' +
         '<div class="product-type">Variable Rate Series A Perpetual Stretch · <a href="https://finance.yahoo.com/quote/STRC/" target="_blank" rel="noopener">STRC</a></div></div></div></td>' +
         '<td>' + formatUsd(number(data.priceUsd)) + '</td><td>' + yieldText + '</td><td>' + shareCount +
         '</td><td>' + costText + "</td></tr>";

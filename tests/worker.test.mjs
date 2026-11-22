@@ -72,11 +72,11 @@ test("parses the 45-day Notice Select standard rate, minimum deposit, and review
   assert.equal(parsed.rateAsOf, "2026-09-25");
 });
 
-test("parses the 18% lower-bound target annual return from Unum Alpha Upgrade HTML and leaves minimum unverified", () => {
+test("parses the target annual return range from Unum Alpha Upgrade HTML with R50,000 minimum and 18.4% return rate", () => {
   const parsed = parseUnumAlphaUpgradeHtml(SAMPLE_UNUM_ALPHA_UPGRADE_HTML, new Date("2026-11-22T12:00:00.000Z"));
   assert.ok(parsed);
-  assert.equal(parsed.minimumInvestmentZar, null);
-  assert.equal(parsed.annualRatePercent, 18);
+  assert.equal(parsed.minimumInvestmentZar, 50000);
+  assert.equal(parsed.annualRatePercent, 18.4);
   assert.equal(parsed.targetReturnMinPercent, 18);
   assert.equal(parsed.targetReturnMaxPercent, 25);
   assert.equal(parsed.rateAsOf, "2026-11-22");
@@ -148,8 +148,8 @@ test("GET /api/funds downloads Absa and Unum pages, caches for one week, and rej
     assert.equal(payload.funds[0].annualRatePercent, 7.35);
     assert.equal(payload.funds[0].rateAsOf, "2026-09-25");
     assert.equal(payload.funds[1].id, "unum-alpha-upgrade");
-    assert.equal(payload.funds[1].minimumInvestmentZar, null);
-    assert.equal(payload.funds[1].annualRatePercent, 18);
+    assert.equal(payload.funds[1].minimumInvestmentZar, 50000);
+    assert.equal(payload.funds[1].annualRatePercent, 18.4);
     assert.deepEqual(requestedUrls.sort(), [
       "https://koinz.co.za/alpha-upgrade-debt-fund/",
       "https://www.absa.co.za/rates-and-fees/?scrolltome=notice-select",

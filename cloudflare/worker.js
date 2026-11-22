@@ -3,6 +3,8 @@ const PRODUCT_SOURCE = "https://www.absa.co.za/rates-and-fees/?scrolltome=notice
 const UNUM_PRODUCT_ID = "unum-alpha-upgrade";
 const UNUM_PRODUCT_SOURCE = "https://koinz.co.za/alpha-upgrade-debt-fund/";
 const UNUM_FACTSHEET_SOURCE = "https://unum.co.za/wp-content/uploads/2025/04/Alpha-Upgrade.pdf";
+const UNUM_DEFAULT_MINIMUM_ZAR = 50000;
+const UNUM_DEFAULT_ANNUAL_RATE_PERCENT = 18.4;
 const STRC_URL = "https://query1.finance.yahoo.com/v8/finance/chart/STRC?range=1y&interval=1d&events=div";
 const USD_ZAR_URL = "https://query1.finance.yahoo.com/v8/finance/chart/USDZAR=X?range=5d&interval=1d";
 const ONE_YEAR_MS = 365.25 * 86400000;
@@ -192,7 +194,7 @@ export function parseUnumAlphaUpgradeHtml(html, now = new Date()) {
     return null;
   }
 
-  let minimumInvestmentZar = null;
+  let minimumInvestmentZar = UNUM_DEFAULT_MINIMUM_ZAR;
   const minMatch = /minimum\s+(?:investment|deposit|buy-in|lump\s+sum)[^.\d]*R\s*([\d\s,]+(?:\.\d+)?)/i.exec(text);
   if (minMatch) {
     const parsedMin = Number(minMatch[1].replace(/[\s,]/g, ""));
@@ -204,7 +206,7 @@ export function parseUnumAlphaUpgradeHtml(html, now = new Date()) {
   const dateObj = now instanceof Date ? now : new Date(now);
   return {
     minimumInvestmentZar,
-    annualRatePercent: minRate,
+    annualRatePercent: UNUM_DEFAULT_ANNUAL_RATE_PERCENT,
     targetReturnMinPercent: minRate,
     targetReturnMaxPercent: maxRate,
     rateAsOf: dateObj.toISOString().slice(0, 10),
@@ -446,7 +448,7 @@ async function handleFunds(request, env, ctx) {
   }
 
   const cache = typeof caches !== "undefined" && caches ? caches.default : null;
-  const cacheKey = new Request(new URL("/api/funds?v=2", request.url), { method: "GET" });
+  const cacheKey = new Request(new URL("/api/funds?v=3", request.url), { method: "GET" });
   if (cache) {
     try {
       const cached = await cache.match(cacheKey);

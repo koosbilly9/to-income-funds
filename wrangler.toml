@@ -13,3 +13,7 @@ enabled = true
 
 [observability.traces]
 enabled = true
+
+[vars]
+UNUM_MINIMUM_ZAR = "50000"
+UNUM_ANNUAL_RATE_PERCENT = "18.4"
