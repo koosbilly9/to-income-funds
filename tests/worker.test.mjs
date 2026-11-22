@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import worker, { buildFundData } from "../cloudflare/worker.js";
+import worker, { buildFundData, buildStrcData } from "../cloudflare/worker.js";
 
 test("returns only the requested Absa notice account and leaves unverified figures blank", () => {
   const now = new Date("2026-11-22T12:00:00.000Z");
@@ -42,12 +42,110 @@ test("GET /api/funds returns cacheable JSON and non-GET requests are rejected", 
 });
 
 test("returns a server error for invalid public fund configuration", async () => {
-  const response = await worker.fetch(
-    new Request("https://funds.example/api/funds"),
-    { ABSA_ANNUAL_RATE_PERCENT: "bad" },
-  );
-  assert.equal(response.status, 500);
-  assert.deepEqual(await response.json(), { error: "Fund data configuration is invalid" });
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    const response = await worker.fetch(
+      new Request("https://funds.example/api/funds"),
+      { ABSA_ANNUAL_RATE_PERCENT: "bad" },
+    );
+    assert.equal(response.status, 500);
+    assert.deepEqual(await response.json(), { error: "Fund data configuration is invalid" });
+  } finally {
+    console.error = originalError;
+  }
+});
+
+test("builds STRC trailing dividend yield using a live USD price and USD/ZAR rate", () => {
+  const now = new Date("2026-11-22T12:00:00.000Z");
+  const nowSeconds = Math.floor(now.getTime() / 1000);
+  const stockPayload = {
+    chart: {
+      result: [{
+        meta: {
+          symbol: "STRC",
+          regularMarketPrice: 100,
+          regularMarketTime: nowSeconds - 3600,
+        },
+        events: {
+          dividends: {
+            recent: { date: nowSeconds - 86400, amount: 0.5 },
+            older: { date: nowSeconds - 200 * 86400000 / 1000, amount: 0.25 },
+            expired: { date: nowSeconds - 366 * 86400000 / 1000, amount: 1.5 },
+            future: { date: nowSeconds + 86400, amount: 2 },
+          },
+        },
+      }],
+    },
+  };
+  const fxPayload = {
+    chart: {
+      result: [{
+        meta: {
+          symbol: "USDZAR=X",
+          regularMarketPrice: 17.5,
+          regularMarketTime: nowSeconds,
+        },
+      }],
+    },
+  };
+
+  const result = buildStrcData(stockPayload, fxPayload, now);
+  assert.equal(result.symbol, "STRC");
+  assert.equal(result.priceUsd, 100);
+  assert.equal(result.usdZar, 17.5);
+  assert.equal(result.trailingDividendPerShareUsd, 0.75);
+  assert.equal(result.trailingDividendYieldPercent, 0.75);
+  assert.equal(result.trailingDividendEvents, 2);
+});
+
+test("rejects malformed or mismatched STRC quote data", () => {
+  assert.throws(() => buildStrcData(
+    { chart: { result: [{ meta: { symbol: "OTHER" } }] } },
+    { chart: { result: [{ meta: { symbol: "USDZAR=X" } }] } },
+  ), /STRC chart response was invalid/);
+});
+
+test("GET /api/strc fetches current quotes and returns a five-minute cache header", async () => {
+  const originalFetch = globalThis.fetch;
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const responses = {
+    STRC: {
+      chart: {
+        result: [{
+          meta: { symbol: "STRC", regularMarketPrice: 100, regularMarketTime: nowSeconds },
+          events: { dividends: { recent: { date: nowSeconds - 86400, amount: 0.5 } } },
+        }],
+      },
+    },
+    "USDZAR=X": {
+      chart: {
+        result: [{
+          meta: { symbol: "USDZAR=X", regularMarketPrice: 17.5, regularMarketTime: nowSeconds },
+        }],
+      },
+    },
+  };
+  const requestedUrls = [];
+  globalThis.fetch = async (url) => {
+    requestedUrls.push(url);
+    const key = String(url).includes("USDZAR=X") ? "USDZAR=X" : "STRC";
+    return Response.json(responses[key]);
+  };
+  try {
+    const response = await worker.fetch(new Request("https://funds.example/api/strc"), {});
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("Cache-Control"), "public, max-age=300");
+    const data = await response.json();
+    assert.equal(data.priceUsd, 100);
+    assert.equal(data.usdZar, 17.5);
+    assert.deepEqual(requestedUrls.sort(), [
+      "https://query1.finance.yahoo.com/v8/finance/chart/STRC?range=1y&interval=1d&events=div",
+      "https://query1.finance.yahoo.com/v8/finance/chart/USDZAR=X?range=5d&interval=1d",
+    ]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("routes static files through the assets binding and returns API 404s", async () => {
@@ -61,4 +159,9 @@ test("routes static files through the assets binding and returns API 404s", asyn
 
   const missing = await worker.fetch(new Request("https://funds.example/api/missing"), { ASSETS: assets });
   assert.equal(missing.status, 404);
+  const postQuote = await worker.fetch(
+    new Request("https://funds.example/api/strc", { method: "POST" }),
+    { ASSETS: assets },
+  );
+  assert.equal(postQuote.status, 405);
 });

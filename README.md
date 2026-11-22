@@ -1,10 +1,10 @@
 # Investment funds
 
-A lightweight static comparison page served by the `investment-funds` Cloudflare Worker. It starts with one product: Absa's 45-day Personal Notice account.
+A lightweight static comparison page served by the `investment-funds` Cloudflare Worker. It starts with Absa's 45-day Personal Notice account and Strategy Inc.'s STRC preferred share.
 
 ## Data and calculation
 
-The page distinguishes the notice deposit account from a unit trust/investment fund. The minimum opening amount and current interest rate are left unverified unless configured from a current Absa source; they are not guessed. The page links to Absa to verify the current account terms.
+The page distinguishes the notice deposit account from a unit trust/investment fund. The minimum opening amount and current interest rate are left unverified unless configured from a current Absa source; they are not guessed.
 
 To publish verified figures, set these non-secret Wrangler variables in `wrangler.toml` or the Cloudflare dashboard:
 
@@ -12,7 +12,11 @@ To publish verified figures, set these non-secret Wrangler variables in `wrangle
 - `ABSA_ANNUAL_RATE_PERCENT`: verified gross annual rate, as a percentage (for example, `7.5` for 7.5%).
 - `ABSA_RATE_AS_OF`: date the rate was checked, in `YYYY-MM-DD` format.
 
-The browser can also accept a manually entered annual rate; that rate and the annual target are saved in that browser only. The required balance is `annual income goal / (annual interest rate / 100)`. It estimates gross simple interest for a year at a constant rate and excludes tax, fees, compounding, and rate tiers. It is not a forecast or investment advice.
+The Absa balance estimate is `annual income goal / (annual interest rate / 100)`. It estimates gross simple interest for a year at the configured constant rate and excludes tax, fees, compounding, and rate tiers.
+
+The STRC frame loads the share price, trailing 12-month dividend events, and USD/ZAR conversion from Yahoo Finance through `/api/strc`. Dividend yield is trailing dividends per share divided by the latest share price. Target shares are rounded up from the ZAR income goal converted to USD and divided by trailing dividends per share. This is a historical estimate, not a forward payout promise; distributions and exchange rates can change. The Worker caches the quote response for five minutes.
+
+The annual income goal is editable and saved in the current browser only.
 
 ## Run and deploy
 
@@ -20,4 +24,4 @@ From this directory, run `npx wrangler dev` for local preview and `npx wrangler 
 
 ## Tests
 
-Run `node --test tests/*.test.mjs`.
+Run `bun test tests/*.test.mjs`.

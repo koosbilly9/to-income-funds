@@ -26,6 +26,15 @@
     return target / (annualRatePercent / 100);
   }
 
+  function targetShares(targetZar, trailingDividendPerShareUsd, usdZar) {
+    if (!Number.isFinite(targetZar) || targetZar <= 0 ||
+        !Number.isFinite(trailingDividendPerShareUsd) || trailingDividendPerShareUsd <= 0 ||
+        !Number.isFinite(usdZar) || usdZar <= 0) {
+      return null;
+    }
+    return Math.ceil(targetZar / (trailingDividendPerShareUsd * usdZar));
+  }
+
   function validFundPayload(payload) {
     if (!payload || !Array.isArray(payload.funds) ||
         !payload.funds.some(function (fund) { return fund && fund.id === "absa-45-day-notice"; })) {
@@ -59,74 +68,111 @@
     }).then(validFundPayload);
   }
 
-  function renderFund(fund, initialSettings) {
-    var rateInput = root.document.getElementById("annual-rate");
+  function requestStrc() {
+    return root.fetch("/api/strc", { headers: { Accept: "application/json" } }).then(function (response) {
+      if (!response.ok) throw new Error("STRC market data request failed (HTTP " + response.status + ")");
+      return response.json();
+    }).then(function (payload) {
+      if (!payload || payload.symbol !== "STRC" ||
+          !Number.isFinite(number(payload.priceUsd)) ||
+          !Number.isFinite(number(payload.usdZar))) {
+        throw new Error("STRC market data response was invalid");
+      }
+      return payload;
+    });
+  }
+
+  function renderFund(fund) {
     var targetInput = root.document.getElementById("annual-target");
     var tbody = root.document.getElementById("funds");
-    var requiredEl = root.document.getElementById("required-balance");
-    var noteEl = root.document.getElementById("calculation-note");
     var dataNoteEl = root.document.getElementById("data-note");
-    var goalCaption = root.document.getElementById("goal-caption");
-    var rateFromServer = Number.isFinite(number(fund.annualRatePercent)) ? number(fund.annualRatePercent) : null;
-    var settings = initialSettings;
-
-    if (rateFromServer !== null) {
-      rateInput.value = String(rateFromServer);
-    } else if (Number.isFinite(number(settings.rate)) && number(settings.rate) >= 0) {
-      rateInput.value = String(settings.rate);
-    }
-
-    if (Number.isFinite(number(settings.target)) && number(settings.target) > 0) {
-      targetInput.value = String(settings.target);
-    }
+    var rate = number(fund.annualRatePercent);
+    var minimumValue = number(fund.minimumInvestmentZar);
 
     function update() {
       var target = number(targetInput.value);
-      var rate = number(rateInput.value);
       var balance = requiredBalance(target, rate);
       var validTarget = Number.isFinite(target) && target > 0;
       var validRate = Number.isFinite(rate) && rate > 0 && rate <= 100;
       var hasRate = Number.isFinite(rate) && rate >= 0 && rate <= 100;
-      var hasMinimum = Number.isFinite(number(fund.minimumInvestmentZar));
-      var minimum = Number.isFinite(number(fund.minimumInvestmentZar))
-        ? formatRand(number(fund.minimumInvestmentZar))
+      var hasMinimum = Number.isFinite(minimumValue);
+      var minimum = hasMinimum
+        ? formatRand(minimumValue)
         : '<span class="unverified">Not verified</span>';
       var annualReturn = hasRate ? rate.toFixed(2) + "% gross p.a." : '<span class="unverified">Not verified</span>';
       var balanceText = validTarget && validRate ? formatRand(balance) : "—";
-      var goalText = validTarget ? formatRand(target) : "Enter a valid goal";
       var access = typeof fund.access === "string" ? fund.access : "—";
       tbody.innerHTML =
         '<tr><td><div class="product"><span class="product-mark" aria-hidden="true">A</span><div><div class="product-name">' +
         escapeHtml(fund.name) + '</div><div class="product-type">' + escapeHtml(fund.category) +
         '</div></div></div></td><td>' + minimum + '</td><td>' + annualReturn +
         '</td><td>' + balanceText + '</td><td>' + escapeHtml(access) + "</td></tr>";
-      requiredEl.textContent = validTarget && validRate ? formatRand(balance) : "Enter a verified rate";
-      goalCaption.textContent = goalText;
-      noteEl.textContent = validTarget && validRate
-        ? "About " + formatRand(target / 12) + " gross per month at a constant " + rate.toFixed(2) + "% rate."
-        : "A positive annual rate is needed to calculate the required balance.";
-      if (rateFromServer !== null) {
+      if (hasRate) {
         var dateText = typeof fund.rateAsOf === "string" ? " as of " + fund.rateAsOf : "";
         dataNoteEl.innerHTML = "<strong>Worker data" + escapeHtml(dateText) + ".</strong> " +
           (hasMinimum ? "The minimum and rate were configured for this page." : "The minimum buy-in is still unverified.") +
-          " Confirm current terms and balance tiers with Absa.";
-      } else if (hasRate) {
-        dataNoteEl.innerHTML = "<strong>Manually entered rate.</strong> This estimate uses your input; it has not been verified by the Worker. " +
-          (hasMinimum ? "The minimum buy-in is configured in the Worker." : "The minimum buy-in is still unverified.") +
-          " Confirm current terms and balance tiers with Absa.";
+          ' Confirm current terms and balance tiers with <a href="https://www.absa.co.za/personal/" target="_blank" rel="noopener">Absa</a>.';
       } else {
-        dataNoteEl.innerHTML = "<strong>Rate/minimum not verified.</strong> ABSA rates and opening amounts can change and may depend on the balance tier. " +
-          "Enter the current published rate above; set confirmed product details in the Worker before relying on them.";
+        dataNoteEl.innerHTML = hasMinimum
+          ? "<strong>Rate not configured.</strong> The minimum buy-in is set in the Worker, but the current rate is still needed for an estimate."
+          : "<strong>Rate/minimum not verified.</strong> ABSA rates and opening amounts can change and may depend on the balance tier. " +
+            'Set confirmed product details in the Worker and check current terms with <a href="https://www.absa.co.za/personal/" target="_blank" rel="noopener">Absa</a>.';
       }
-      saveSettings({
-        target: validTarget ? target : DEFAULT_TARGET,
-        rate: rateFromServer === null && Number.isFinite(rate) && rate >= 0 && rate <= 100 ? rate : null
-      });
     }
 
     targetInput.addEventListener("input", update);
-    rateInput.addEventListener("input", update);
     update();
+  }
+
+  function renderStrc(data) {
+    var targetInput = root.document.getElementById("annual-target");
+    var tbody = root.document.getElementById("strc");
+    var note = root.document.getElementById("strc-note");
+    var updated = root.document.getElementById("strc-updated");
+
+    function update() {
+      var target = number(targetInput.value);
+      var shares = targetShares(target, number(data.trailingDividendPerShareUsd), number(data.usdZar));
+      var yieldPercent = number(data.trailingDividendYieldPercent);
+      var hasYield = Number.isFinite(yieldPercent) && yieldPercent >= 0;
+      var shareCount = shares === null
+        ? "—"
+        : new Intl.NumberFormat("en-ZA", { maximumFractionDigits: 0 }).format(shares);
+      var yieldText = hasYield
+        ? yieldPercent.toFixed(2) + "%"
+        : '<span class="unverified">Unavailable</span>';
+      tbody.innerHTML =
+        '<tr><td><div class="product"><span class="product-mark" aria-hidden="true">S</span><div><div class="product-name">Strategy Inc.</div>' +
+        '<div class="product-type">Variable Rate Series A Perpetual Stretch · <a href="https://finance.yahoo.com/quote/STRC/" target="_blank" rel="noopener">STRC</a></div></div></div></td>' +
+        '<td>' + formatUsd(number(data.priceUsd)) + '</td><td>' + yieldText + '</td><td>' + shareCount + "</td></tr>";
+
+      if (shares === null) {
+        note.textContent = "A complete trailing dividend history and a current USD/ZAR rate are needed to estimate target shares.";
+      } else {
+        var fxDate = data.usdZarAsOf
+          ? " as of " + new Date(data.usdZarAsOf).toLocaleDateString()
+          : "";
+        note.textContent = "Trailing 12-month dividends: " + formatUsd(number(data.trailingDividendPerShareUsd)) +
+          " per share. USD/ZAR: " + number(data.usdZar).toFixed(4) + fxDate +
+          ". Target shares are rounded up using this historical payout; future dividends may differ.";
+      }
+    }
+
+    updated.textContent = data.priceAsOf
+      ? "Price as of " + new Date(data.priceAsOf).toLocaleString()
+      : "Market data loaded";
+    targetInput.addEventListener("input", update);
+    update();
+  }
+
+  function formatUsd(value) {
+    if (!Number.isFinite(value)) return "—";
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(value);
   }
 
   function escapeHtml(value) {
@@ -139,10 +185,21 @@
     if (!root.document) return;
     var status = root.document.getElementById("status");
     var updated = root.document.getElementById("updated");
+    var targetInput = root.document.getElementById("annual-target");
+    var settings = readSettings();
+    var savedTarget = number(settings.target);
+    if (Number.isFinite(savedTarget) && savedTarget > 0) {
+      targetInput.value = String(savedTarget);
+    }
+    targetInput.addEventListener("input", function () {
+      var target = number(targetInput.value);
+      if (Number.isFinite(target) && target > 0) saveSettings({ target: target });
+    });
+
     requestFunds().then(function (payload) {
       var fund = payload.funds.find(function (item) { return item.id === "absa-45-day-notice"; });
-      renderFund(fund, readSettings());
-      status.textContent = "One product";
+      renderFund(fund);
+      status.textContent = "Absa data loaded";
       updated.textContent = payload.updatedAt
         ? "Details loaded " + new Date(payload.updatedAt).toLocaleString()
         : "";
@@ -152,13 +209,28 @@
       updated.textContent = "Could not load fund data";
       root.document.getElementById("funds").innerHTML =
         '<tr><td colspan="5">Fund data could not be loaded. Please try again later.</td></tr>';
-      root.document.getElementById("required-balance").textContent = "Unavailable";
-      root.document.getElementById("calculation-note").textContent = error.message;
+      root.document.getElementById("data-note").textContent = error.message;
+    });
+
+    requestStrc().then(function (data) {
+      renderStrc(data);
+    }).catch(function (error) {
+      console.error("Could not load STRC market data:", error);
+      root.document.getElementById("strc-updated").textContent = "Could not load share data";
+      root.document.getElementById("strc").innerHTML =
+        '<tr><td colspan="4">STRC price and dividend data could not be loaded.</td></tr>';
+      root.document.getElementById("strc-note").textContent = error.message;
     });
   }
 
   if (typeof module !== "undefined" && module.exports) {
-    module.exports = { DEFAULT_TARGET: DEFAULT_TARGET, formatRand: formatRand, requiredBalance: requiredBalance, validFundPayload: validFundPayload };
+    module.exports = {
+      DEFAULT_TARGET: DEFAULT_TARGET,
+      formatRand: formatRand,
+      requiredBalance: requiredBalance,
+      targetShares: targetShares,
+      validFundPayload: validFundPayload
+    };
   }
   if (root.document) init();
 })(typeof globalThis !== "undefined" ? globalThis : this);

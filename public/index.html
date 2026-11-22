@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f5f7f4">
-  <title>Income funds | R300,000 a year</title>
+  <title>Income and dividends | R300,000 a year</title>
   <style>
     :root {
       color-scheme: light dark;
@@ -57,7 +57,7 @@
     h1 { max-width: 700px; margin: 9px 0 14px; font-size: clamp(40px, 7vw, 72px); line-height: .98; letter-spacing: -.055em; }
     .hero p { max-width: 630px; margin: 0; color: var(--muted); font-size: 17px; }
     .goal { padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); box-shadow: var(--shadow); }
-    .goal label, .rate-field label { display: block; margin-bottom: 7px; color: var(--muted); font-size: 12px; font-weight: 700; }
+    .goal label { display: block; margin-bottom: 7px; color: var(--muted); font-size: 12px; font-weight: 700; }
     .goal-value { display: flex; align-items: center; gap: 8px; }
     input {
       min-width: 0;
@@ -85,26 +85,16 @@
     .product-mark { display: grid; width: 38px; height: 38px; flex: none; place-items: center; border-radius: 12px; background: var(--green-soft); color: var(--green); font-size: 12px; font-weight: 800; }
     .product-name { font-weight: 750; }
     .product-type { color: var(--muted); font-size: 11px; }
-    .return-input { width: 120px; }
     .unverified { color: var(--orange); font-weight: 700; }
-    .calculation { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(220px, .7fr); gap: 22px; padding: 22px; border-top: 1px solid var(--line); }
-    .capital { padding: 22px; border-radius: 15px; background: var(--green-soft); }
-    .capital-label { color: var(--muted); font-size: 12px; font-weight: 700; }
-    .capital-value { margin: 5px 0 3px; color: var(--green); font-size: clamp(28px, 5vw, 44px); font-weight: 850; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
-    .capital-note, .calculation p { margin: 0; color: var(--muted); font-size: 12px; }
-    .rate-field { align-self: center; }
-    .rate-field input { width: 100%; }
     .notice { margin: 0; padding: 15px 22px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
     .notice strong { color: var(--ink); }
-    .source a { color: var(--green); }
+    .notice a, footer a { color: var(--green); }
     footer { max-width: 92ch; padding: 22px 0 38px; color: var(--muted); font-size: 12px; line-height: 1.7; }
     :focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
     @media (max-width: 700px) {
       .hero { grid-template-columns: 1fr; gap: 22px; }
       .goal { max-width: 420px; }
-      .calculation { grid-template-columns: 1fr; }
       .panel-head { align-items: flex-start; flex-direction: column; padding: 17px; }
-      .calculation { padding: 17px; }
       .notice { padding-inline: 17px; }
     }
     @media (max-width: 480px) {
@@ -122,16 +112,16 @@
         <span class="mark" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none"><path d="M5 18V11m7 7V5m7 13v-9" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
         </span>
-        Income funds
+        Income and dividends
       </div>
-      <div class="status" id="status" role="status">Loading fund details…</div>
+      <div class="status" id="status" role="status">Loading comparison data…</div>
     </header>
     <main>
       <section class="hero" aria-labelledby="page-title">
         <div>
-          <div class="eyebrow">One product to start</div>
+          <div class="eyebrow">One deposit + one share to start</div>
           <h1 id="page-title">Plan for R300,000 a year.</h1>
-          <p>See the deposit balance that would be needed to earn your target in gross interest. Start with Absa’s 45-day Personal Notice account.</p>
+          <p>Compare a notice account with a dividend-paying share and estimate the shares needed to meet your annual income goal.</p>
         </div>
         <div class="goal">
           <label for="annual-target">Annual income goal</label>
@@ -139,15 +129,15 @@
             <span aria-hidden="true">R</span>
             <input id="annual-target" type="number" min="1" step="1000" value="300000" inputmode="decimal">
           </div>
-          <small>Gross interest per year, before tax. You can change this target.</small>
+          <small>Gross income per year in rand, before tax. Applies to both frames.</small>
         </div>
       </section>
 
       <section class="panel" aria-labelledby="funds-heading">
         <div class="panel-head">
           <div>
-            <h2 id="funds-heading">Starting comparison</h2>
-            <p>One South African deposit product. Add other funds when you’re ready.</p>
+            <h2 id="funds-heading">Absa 45-day Personal Notice</h2>
+            <p>Savings terms and the estimated balance for your annual income goal.</p>
           </div>
           <div class="status" id="updated" aria-live="polite"></div>
         </div>
@@ -167,34 +157,39 @@
             </tbody>
           </table>
         </div>
-        <div class="calculation">
-          <div class="capital">
-            <div class="capital-label">Estimated balance to earn <span id="goal-caption">R300,000</span> per year</div>
-            <div class="capital-value" id="required-balance" aria-live="polite">Enter a verified rate</div>
-            <p class="capital-note" id="calculation-note">The current ABSA rate has not been verified.</p>
-          </div>
-          <div class="rate-field">
-            <label for="annual-rate">Annual interest rate (% gross p.a.)</label>
-            <input id="annual-rate" type="number" min="0" max="100" step="0.01" inputmode="decimal" placeholder="Enter rate from Absa">
-          </div>
-        </div>
-        <p class="notice" id="data-note" role="status"><strong>Rate/minimum not verified.</strong> ABSA rates and opening amounts can change and may depend on the balance tier. Enter the current published rate above; set confirmed product details in the Worker before relying on them.</p>
+        <p class="notice" id="data-note" role="status"><strong>Rate/minimum not verified.</strong> Absa rates and opening amounts can change and may depend on the balance tier. Configure confirmed product details in the Worker before relying on them. Check current terms with <a href="https://www.absa.co.za/personal/" target="_blank" rel="noopener">Absa</a>.</p>
       </section>
 
-      <section class="panel">
+      <section class="panel" aria-labelledby="shares-heading">
         <div class="panel-head">
           <div>
-            <h2>How to read this estimate</h2>
-            <p>Transparent calculation, not a forecast.</p>
+            <h2 id="shares-heading">Dividend-paying share</h2>
+            <p>STRC · Strategy Inc. Variable Rate Series A Perpetual Stretch Preferred Stock</p>
           </div>
+          <div class="status" id="strc-updated" role="status">Loading share data…</div>
         </div>
-        <p class="notice source">
-          Required balance = annual income goal ÷ annual interest rate. This is a simple gross estimate: it assumes the entered rate stays unchanged for a full year and excludes tax, fees, compounding, and rate tiers. A 45-day notice account is a bank deposit product, not a unit trust or guaranteed investment return. Check current terms directly with <a href="https://www.absa.co.za/personal/" target="_blank" rel="noopener">Absa</a>.
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Name and ticker</th>
+                <th scope="col">Share price</th>
+                <th scope="col">Dividend % (TTM)</th>
+                <th scope="col">Target shares</th>
+              </tr>
+            </thead>
+            <tbody id="strc">
+              <tr><td colspan="4">Loading STRC price and dividend history…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="notice" id="strc-note" role="status">
+          Dividend percentage is based on distributions reported over the trailing 12 months. Target shares are rounded up and use the current USD/ZAR rate; future distributions and exchange rates can change.
         </p>
       </section>
     </main>
     <footer>
-      For information only, not financial advice. This estimate does not guarantee an income or account eligibility. Confirm the current rate, minimum balance, interest calculation, tax treatment, and withdrawal terms with Absa before making a decision.
+      The Absa rate and minimum are not verified unless configured in the Worker. STRC price, reported dividends, and USD/ZAR are fetched from <a href="https://finance.yahoo.com/quote/STRC/" target="_blank" rel="noopener">Yahoo Finance</a>. Its trailing dividend yield is historical, not a promised forward rate; the share-count estimate assumes that past distributions repeat. Dividend, price, exchange-rate, tax, and fee changes can materially affect income. For information only, not financial advice.
     </footer>
   </div>
   <script src="/app.js" defer></script>
