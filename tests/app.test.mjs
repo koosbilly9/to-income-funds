@@ -7,6 +7,7 @@ const {
   DEFAULT_TARGET,
   apiUrl,
   formatRand,
+  monthlyIncomeBreakdown,
   requiredBalance,
   targetShares,
   totalShareCostZar,
@@ -24,6 +25,15 @@ test("formats ZAR and rejects incomplete fund responses", () => {
   assert.match(formatRand(300000), /R/);
   assert.throws(() => validFundPayload({ funds: [] }), /invalid/i);
   assert.equal(validFundPayload({ funds: [{ id: "absa-45-day-notice" }] }).funds.length, 1);
+});
+
+test("calculates monthly gross, 20% estimated tax, and net from the annual goal", () => {
+  assert.deepEqual(monthlyIncomeBreakdown(300000), {
+    gross: 25000,
+    taxEstimate: 5000,
+    net: 20000
+  });
+  assert.equal(monthlyIncomeBreakdown(0), null);
 });
 
 test("rounds the STRC share count up after converting the ZAR goal to USD", () => {

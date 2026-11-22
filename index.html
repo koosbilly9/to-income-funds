@@ -71,6 +71,14 @@
     }
     .goal input { width: 100%; font-size: 22px; font-weight: 750; }
     .goal small { display: block; margin-top: 8px; color: var(--muted); font-size: 11px; }
+    .monthly-summary { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+    .monthly-summary h3 { margin: 0 0 8px; font-size: 13px; }
+    .monthly-summary dl { display: grid; gap: 5px; margin: 0; }
+    .monthly-summary dl div { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; }
+    .monthly-summary dt { color: var(--muted); }
+    .monthly-summary dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .monthly-summary dl div:last-child { padding-top: 6px; border-top: 1px solid var(--line); }
+    .monthly-summary small { margin-top: 8px; }
     .panel { overflow: hidden; border: 1px solid var(--line); border-radius: 18px; background: var(--card); box-shadow: var(--shadow); }
     .panel + .panel { margin-top: 22px; }
     .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 20px 22px; }
@@ -130,6 +138,15 @@
             <input id="annual-target" type="number" min="1" step="1000" value="300000" inputmode="decimal">
           </div>
           <small>Gross income per year in rand, before tax. Applies to both frames.</small>
+          <div class="monthly-summary" role="status" aria-live="polite" aria-label="Monthly income estimate">
+            <h3>PM:</h3>
+            <dl>
+              <div><dt>Gross (annual goal ÷ 12)</dt><dd id="monthly-gross">—</dd></div>
+              <div><dt>Tax estimate (20% of annual ÷ 12)</dt><dd id="monthly-tax">—</dd></div>
+              <div><dt>Net per month</dt><dd id="monthly-net">—</dd></div>
+            </dl>
+            <small>Illustrative tax estimate; actual tax depends on personal circumstances.</small>
+          </div>
         </div>
       </section>
 

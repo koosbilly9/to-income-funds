@@ -17,6 +17,17 @@
     return Number(value);
   }
 
+  function monthlyIncomeBreakdown(annualIncomeGoal) {
+    if (!Number.isFinite(annualIncomeGoal) || annualIncomeGoal <= 0) return null;
+    var gross = annualIncomeGoal / 12;
+    var taxEstimate = annualIncomeGoal * 0.2 / 12;
+    return {
+      gross: gross,
+      taxEstimate: taxEstimate,
+      net: gross - taxEstimate
+    };
+  }
+
   function formatRand(value) {
     if (!Number.isFinite(value)) return "—";
     return new Intl.NumberFormat("en-ZA", {
@@ -244,9 +255,21 @@
     var targetInput = root.document.getElementById("annual-target");
     var settings = readSettings();
     var savedTarget = number(settings.target);
+    var monthlyGross = root.document.getElementById("monthly-gross");
+    var monthlyTax = root.document.getElementById("monthly-tax");
+    var monthlyNet = root.document.getElementById("monthly-net");
     if (Number.isFinite(savedTarget) && savedTarget > 0) {
       targetInput.value = String(savedTarget);
     }
+    function updateMonthlyIncome() {
+      var breakdown = monthlyIncomeBreakdown(number(targetInput.value));
+      monthlyGross.textContent = breakdown ? formatRand(breakdown.gross) : "—";
+      monthlyTax.textContent = breakdown ? formatRand(breakdown.taxEstimate) : "—";
+      monthlyNet.textContent = breakdown ? formatRand(breakdown.net) : "—";
+    }
+
+    updateMonthlyIncome();
+    targetInput.addEventListener("input", updateMonthlyIncome);
     targetInput.addEventListener("input", function () {
       var target = number(targetInput.value);
       if (Number.isFinite(target) && target > 0) saveSettings({ target: target });
@@ -283,6 +306,7 @@
       DEFAULT_TARGET: DEFAULT_TARGET,
       apiUrl: apiUrl,
       formatRand: formatRand,
+      monthlyIncomeBreakdown: monthlyIncomeBreakdown,
       requiredBalance: requiredBalance,
       totalShareCostZar: totalShareCostZar,
       targetShares: targetShares,
