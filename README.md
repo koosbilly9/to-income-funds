@@ -14,7 +14,7 @@ To override the scraped figures manually, set these non-secret Wrangler variable
 
 The Absa balance estimate is `annual income goal / (annual interest rate / 100)`. It estimates gross simple interest for a year at the configured constant rate and excludes tax, fees, compounding, and rate tiers.
 
-The STRC frame loads the share price, trailing 12-month dividend events, and USD/ZAR conversion from Yahoo Finance through `/api/strc`. Dividend yield is trailing dividends per share divided by the latest share price. Target shares are rounded up from the ZAR income goal converted to USD and divided by trailing dividends per share. This is a historical estimate, not a forward payout promise; distributions and exchange rates can change. The Worker caches the quote response for five minutes.
+The STRC frame loads the share price, trailing 12-month dividend events, and USD/ZAR conversion from Yahoo Finance through `/api/strc`. Dividend yield is trailing dividends per share divided by the latest share price. Target shares are rounded up from the ZAR income goal converted to USD and divided by trailing dividends per share. Estimated rand cost is target shares multiplied by the USD share price and current USD/ZAR conversion; it excludes fees and taxes. This is a historical estimate, not a forward payout promise; distributions and exchange rates can change. The Worker caches the quote response for five minutes.
 
 The annual income goal is editable and saved in the current browser only.
 

@@ -3,7 +3,15 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { DEFAULT_TARGET, apiUrl, formatRand, requiredBalance, targetShares, validFundPayload } = require("../app.js");
+const {
+  DEFAULT_TARGET,
+  apiUrl,
+  formatRand,
+  requiredBalance,
+  targetShares,
+  totalShareCostZar,
+  validFundPayload
+} = require("../app.js");
 
 test("calculates gross balance needed to meet the annual target", () => {
   assert.equal(DEFAULT_TARGET, 300000);
@@ -22,6 +30,12 @@ test("rounds the STRC share count up after converting the ZAR goal to USD", () =
   assert.equal(targetShares(300000, 9.2, 17.5), 1864);
   assert.equal(targetShares(300000, null, 17.5), null);
   assert.equal(targetShares(300000, 9.2, 0), null);
+});
+
+test("calculates STRC target-share cost in rand using the current USD/ZAR rate", () => {
+  assert.equal(totalShareCostZar(5, 100, 17.5), 8750);
+  assert.equal(totalShareCostZar(null, 100, 17.5), null);
+  assert.equal(totalShareCostZar(5, 100, 0), null);
 });
 
 test("uses the dedicated Worker API on GitHub Pages and relative routes locally", () => {

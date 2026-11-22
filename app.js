@@ -43,6 +43,15 @@
     return Math.ceil(targetZar / (trailingDividendPerShareUsd * usdZar));
   }
 
+  function totalShareCostZar(shares, priceUsd, usdZar) {
+    if (!Number.isFinite(shares) || shares <= 0 ||
+        !Number.isFinite(priceUsd) || priceUsd <= 0 ||
+        !Number.isFinite(usdZar) || usdZar <= 0) {
+      return null;
+    }
+    return shares * priceUsd * usdZar;
+  }
+
   function validFundPayload(payload) {
     if (!payload || !Array.isArray(payload.funds) ||
         !payload.funds.some(function (fund) { return fund && fund.id === "absa-45-day-notice"; })) {
@@ -147,18 +156,21 @@
     function update() {
       var target = number(targetInput.value);
       var shares = targetShares(target, number(data.trailingDividendPerShareUsd), number(data.usdZar));
+      var cost = totalShareCostZar(shares, number(data.priceUsd), number(data.usdZar));
       var yieldPercent = number(data.trailingDividendYieldPercent);
       var hasYield = Number.isFinite(yieldPercent) && yieldPercent >= 0;
       var shareCount = shares === null
         ? "—"
         : new Intl.NumberFormat("en-ZA", { maximumFractionDigits: 0 }).format(shares);
+      var costText = cost === null ? "—" : formatRand(cost);
       var yieldText = hasYield
         ? yieldPercent.toFixed(2) + "%"
         : '<span class="unverified">Unavailable</span>';
       tbody.innerHTML =
         '<tr><td><div class="product"><span class="product-mark" aria-hidden="true">S</span><div><div class="product-name">Strategy Inc.</div>' +
         '<div class="product-type">Variable Rate Series A Perpetual Stretch · <a href="https://finance.yahoo.com/quote/STRC/" target="_blank" rel="noopener">STRC</a></div></div></div></td>' +
-        '<td>' + formatUsd(number(data.priceUsd)) + '</td><td>' + yieldText + '</td><td>' + shareCount + "</td></tr>";
+        '<td>' + formatUsd(number(data.priceUsd)) + '</td><td>' + yieldText + '</td><td>' + shareCount +
+        '</td><td>' + costText + "</td></tr>";
 
       if (shares === null) {
         note.textContent = "A complete trailing dividend history and a current USD/ZAR rate are needed to estimate target shares.";
@@ -168,7 +180,7 @@
           : "";
         note.textContent = "Trailing 12-month dividends: " + formatUsd(number(data.trailingDividendPerShareUsd)) +
           " per share. USD/ZAR: " + number(data.usdZar).toFixed(4) + fxDate +
-          ". Target shares are rounded up using this historical payout; future dividends may differ.";
+          ". Target shares are rounded up using this historical payout; estimated cost uses the current exchange rate and excludes fees and taxes.";
       }
     }
 
@@ -243,6 +255,7 @@
       apiUrl: apiUrl,
       formatRand: formatRand,
       requiredBalance: requiredBalance,
+      totalShareCostZar: totalShareCostZar,
       targetShares: targetShares,
       validFundPayload: validFundPayload
     };
