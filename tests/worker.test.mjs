@@ -1,6 +1,62 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import worker, { buildFundData, buildStrcData } from "../cloudflare/worker.js";
+import worker, { buildFundData, buildStrcData, parseAbsaNoticeSelectHtml } from "../cloudflare/worker.js";
+
+const SAMPLE_ABSA_NOTICE_SELECT_HTML = `
+<li class="accordion-slide odd">
+  <div class="component-content" id="986041538" title="notice-select">
+    <h2 class="box-heading">notice-select</h2>
+  </div>
+  <div class="richText-content">
+    <p style="text-align: right;">Last reviewed on 25 Septmber 2026</p>
+  </div>
+  <div class="table">
+    <table>
+      <tbody>
+        <tr><td colspan="5"><h4><strong>Standard&nbsp; Rate</strong></h4></td></tr>
+        <tr><td colspan="5"><h5><strong>Balance R0.01 – R999</strong></h5></td></tr>
+        <tr><td>&nbsp;</td><td>7 Days</td><td>15 Days</td><td>32 Days</td><td>45 Days</td></tr>
+        <tr><td>50/50</td><td>0.10%</td><td>0.10%</td><td>0.10%</td><td>0.10%</td></tr>
+        <tr><td>90/10</td><td>0.10%</td><td>0.10%</td><td>0.10%</td><td>0.10%</td></tr>
+        <tr><td>100/0</td><td>0.10%</td><td>0.10%</td><td>0.10%</td><td>0.10%</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="table">
+    <table>
+      <tbody>
+        <tr><td colspan="5"><h4><strong>Standard&nbsp; Rate</strong></h4></td></tr>
+        <tr><td colspan="5"><h5><strong>Balance R1000 - R24 999</strong></h5></td></tr>
+        <tr><td>&nbsp;</td><td>7 Days</td><td>15 Days</td><td>32 Days</td><td>45 Days</td></tr>
+        <tr><td>50/50</td><td>5.55%</td><td>5.80%</td><td>5.85%</td><td>6.85%</td></tr>
+        <tr><td>90/10</td><td>5.75%</td><td>6.00%</td><td>6.05%</td><td>7.25%</td></tr>
+        <tr><td>100/0</td><td>5.85%</td><td>6.10%</td><td>6.15%</td><td>7.35%</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="table">
+    <table>
+      <tbody>
+        <tr><td colspan="5"><h4><strong>Digital Bonus Rate</strong></h4></td></tr>
+        <tr><td colspan="5"><h5><strong>Balance R1000 - R24 999</strong></h5></td></tr>
+        <tr><td>&nbsp;</td><td>7 Days</td><td>15 Days</td><td>32 Days</td><td>45 Days</td></tr>
+        <tr><td>100/0</td><td>6.10%</td><td>6.35%</td><td>6.40%</td><td>7.60%</td></tr>
+      </tbody>
+    </table>
+  </div>
+</li>
+<li class="accordion-slide even">
+  <div class="component-content" title="tax-free-savings"></div>
+</li>
+`;
+
+test("parses the 45-day Notice Select standard rate, minimum deposit, and review date from Absa HTML", () => {
+  const parsed = parseAbsaNoticeSelectHtml(SAMPLE_ABSA_NOTICE_SELECT_HTML, new Date("2026-11-22T12:00:00.000Z"));
+  assert.ok(parsed);
+  assert.equal(parsed.minimumInvestmentZar, 1000);
+  assert.equal(parsed.annualRatePercent, 7.35);
+  assert.equal(parsed.rateAsOf, "2026-09-25");
+});
 
 test("returns only the requested Absa notice account and leaves unverified figures blank", () => {
   const now = new Date("2026-11-22T12:00:00.000Z");
@@ -11,6 +67,7 @@ test("returns only the requested Absa notice account and leaves unverified figur
   assert.equal(data.funds[0].minimumInvestmentZar, null);
   assert.equal(data.funds[0].annualRatePercent, null);
   assert.equal(data.funds[0].category, "Notice deposit account");
+  assert.equal(data.funds[0].source.url, "https://www.absa.co.za/rates-and-fees/?scrolltome=notice-select");
 });
 
 test("accepts explicitly configured rate and minimum with a source date", () => {
@@ -30,21 +87,39 @@ test("rejects malformed configuration instead of publishing invalid figures", ()
   assert.throws(() => buildFundData({ ABSA_RATE_AS_OF: "22-11-2026" }), /YYYY-MM-DD/);
 });
 
-test("GET /api/funds returns cacheable JSON and non-GET requests are rejected", async () => {
-  const getResponse = await worker.fetch(new Request("https://funds.example/api/funds"), {});
-  assert.equal(getResponse.status, 200);
-  assert.equal(getResponse.headers.get("Cache-Control"), "public, max-age=60");
-  assert.equal(getResponse.headers.get("Access-Control-Allow-Origin"), "*");
-  assert.equal((await getResponse.json()).funds.length, 1);
+test("GET /api/funds downloads Absa Notice Select page, caches for one week, and rejects non-GET requests", async () => {
+  const originalFetch = globalThis.fetch;
+  const requestedUrls = [];
+  globalThis.fetch = async (url) => {
+    requestedUrls.push(String(url));
+    return new Response(SAMPLE_ABSA_NOTICE_SELECT_HTML, {
+      status: 200,
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+    });
+  };
+  try {
+    const getResponse = await worker.fetch(new Request("https://funds.example/api/funds"), {});
+    assert.equal(getResponse.status, 200);
+    assert.equal(getResponse.headers.get("Cache-Control"), "public, max-age=604800");
+    assert.equal(getResponse.headers.get("Access-Control-Allow-Origin"), "*");
+    const payload = await getResponse.json();
+    assert.equal(payload.funds.length, 1);
+    assert.equal(payload.funds[0].minimumInvestmentZar, 1000);
+    assert.equal(payload.funds[0].annualRatePercent, 7.35);
+    assert.equal(payload.funds[0].rateAsOf, "2026-09-25");
+    assert.deepEqual(requestedUrls, ["https://www.absa.co.za/rates-and-fees/?scrolltome=notice-select"]);
 
-  const postResponse = await worker.fetch(new Request("https://funds.example/api/funds", { method: "POST" }), {});
-  assert.equal(postResponse.status, 405);
-  assert.equal(postResponse.headers.get("Allow"), "GET");
+    const postResponse = await worker.fetch(new Request("https://funds.example/api/funds", { method: "POST" }), {});
+    assert.equal(postResponse.status, 405);
+    assert.equal(postResponse.headers.get("Allow"), "GET");
 
-  const preflight = await worker.fetch(new Request("https://funds.example/api/funds", { method: "OPTIONS" }), {});
-  assert.equal(preflight.status, 204);
-  assert.equal(preflight.headers.get("Access-Control-Allow-Origin"), "*");
-  assert.equal(preflight.headers.get("Access-Control-Allow-Methods"), "GET, OPTIONS");
+    const preflight = await worker.fetch(new Request("https://funds.example/api/funds", { method: "OPTIONS" }), {});
+    assert.equal(preflight.status, 204);
+    assert.equal(preflight.headers.get("Access-Control-Allow-Origin"), "*");
+    assert.equal(preflight.headers.get("Access-Control-Allow-Methods"), "GET, OPTIONS");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("returns a server error for invalid public fund configuration", async () => {

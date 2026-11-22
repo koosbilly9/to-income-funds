@@ -4,12 +4,12 @@ A lightweight static comparison page served by the `investment-funds` Cloudflare
 
 ## Data and calculation
 
-The page distinguishes the notice deposit account from a unit trust/investment fund. The minimum opening amount and current interest rate are left unverified unless configured from a current Absa source; they are not guessed.
+The page distinguishes the notice deposit account from a unit trust/investment fund. Through `/api/funds`, the Worker downloads `https://www.absa.co.za/rates-and-fees/?scrolltome=notice-select` and caches the parsed result for one week (`604800` seconds). It extracts the `notice-select` section's Standard Rate `100/0` (100% 45-day notice) rate for the opening substantive balance tier (`R1,000+`), minimum deposit (`R1,000`), and review date. If the upstream page cannot be fetched or parsed and no override variables are set, the figures remain unverified rather than guessed.
 
-To publish verified figures, set these non-secret Wrangler variables in `wrangler.toml` or the Cloudflare dashboard:
+To override the scraped figures manually, set these non-secret Wrangler variables in `wrangler.toml` or the Cloudflare dashboard:
 
 - `ABSA_MINIMUM_ZAR`: verified minimum opening amount in rand.
-- `ABSA_ANNUAL_RATE_PERCENT`: verified gross annual rate, as a percentage (for example, `7.5` for 7.5%).
+- `ABSA_ANNUAL_RATE_PERCENT`: verified gross annual rate, as a percentage (for example, `7.35` for 7.35%).
 - `ABSA_RATE_AS_OF`: date the rate was checked, in `YYYY-MM-DD` format.
 
 The Absa balance estimate is `annual income goal / (annual interest rate / 100)`. It estimates gross simple interest for a year at the configured constant rate and excludes tax, fees, compounding, and rate tiers.

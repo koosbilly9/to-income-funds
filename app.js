@@ -117,14 +117,20 @@
         '</td><td>' + balanceText + '</td><td>' + escapeHtml(access) + "</td></tr>";
       if (hasRate) {
         var dateText = typeof fund.rateAsOf === "string" ? " as of " + fund.rateAsOf : "";
-        dataNoteEl.innerHTML = "<strong>Worker data" + escapeHtml(dateText) + ".</strong> " +
-          (hasMinimum ? "The minimum and rate were configured for this page." : "The minimum buy-in is still unverified.") +
-          ' Confirm current terms and balance tiers with <a href="https://www.absa.co.za/personal/" target="_blank" rel="noopener">Absa</a>.';
+        var sourceUrl = fund.source && typeof fund.source.url === "string"
+          ? fund.source.url
+          : "https://www.absa.co.za/rates-and-fees/?scrolltome=notice-select";
+        dataNoteEl.innerHTML = "<strong>Absa Notice Select data" + escapeHtml(dateText) + ".</strong> " +
+          (hasMinimum ? "Fetched weekly from Absa's 45-day Notice Select schedule (100/0 standard rate)." : "The minimum buy-in is still unverified.") +
+          ' Confirm current terms and balance tiers with <a href="' + escapeHtml(sourceUrl) + '" target="_blank" rel="noopener">Absa</a>.';
       } else {
+        var fallbackUrl = fund.source && typeof fund.source.url === "string"
+          ? fund.source.url
+          : "https://www.absa.co.za/rates-and-fees/?scrolltome=notice-select";
         dataNoteEl.innerHTML = hasMinimum
           ? "<strong>Rate not configured.</strong> The minimum buy-in is set in the Worker, but the current rate is still needed for an estimate."
           : "<strong>Rate/minimum not verified.</strong> ABSA rates and opening amounts can change and may depend on the balance tier. " +
-            'Set confirmed product details in the Worker and check current terms with <a href="https://www.absa.co.za/personal/" target="_blank" rel="noopener">Absa</a>.';
+            'Set confirmed product details in the Worker and check current terms with <a href="' + escapeHtml(fallbackUrl) + '" target="_blank" rel="noopener">Absa</a>.';
       }
     }
 

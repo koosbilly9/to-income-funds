@@ -1,11 +1,31 @@
 const PRODUCT_ID = "absa-45-day-notice";
-const PRODUCT_SOURCE = "https://www.absa.co.za/personal/";
+const PRODUCT_SOURCE = "https://www.absa.co.za/rates-and-fees/?scrolltome=notice-select";
 const STRC_URL = "https://query1.finance.yahoo.com/v8/finance/chart/STRC?range=1y&interval=1d&events=div";
 const USD_ZAR_URL = "https://query1.finance.yahoo.com/v8/finance/chart/USDZAR=X?range=5d&interval=1d";
 const ONE_YEAR_MS = 365.25 * 86400000;
+const ONE_WEEK_SECONDS = 7 * 86400;
 const UPSTREAM_HEADERS = {
   Accept: "application/json",
   "User-Agent": "Mozilla/5.0 (compatible; investment-funds/1.0)",
+};
+const HTML_UPSTREAM_HEADERS = {
+  Accept: "text/html,application/xhtml+xml",
+  "User-Agent": "Mozilla/5.0 (compatible; investment-funds/1.0)",
+};
+const MONTHS = {
+  january: "01",
+  february: "02",
+  march: "03",
+  april: "04",
+  may: "05",
+  june: "06",
+  july: "07",
+  august: "08",
+  september: "09",
+  septmber: "09",
+  october: "10",
+  november: "11",
+  december: "12",
 };
 
 function jsonResponse(body, status, headers = {}) {
@@ -43,13 +63,131 @@ function optionalNumber(value, name) {
   return parsed;
 }
 
-export function buildFundData(env = {}, now = new Date()) {
-  const minimumInvestmentZar = optionalNumber(env.ABSA_MINIMUM_ZAR, "ABSA_MINIMUM_ZAR");
-  const annualRatePercent = optionalNumber(env.ABSA_ANNUAL_RATE_PERCENT, "ABSA_ANNUAL_RATE_PERCENT");
-  const rateAsOf = env.ABSA_RATE_AS_OF || null;
-  if (rateAsOf !== null && !/^\d{4}-\d{2}-\d{2}$/.test(rateAsOf)) {
+function stripHtml(value) {
+  return String(value)
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;|&#160;/gi, " ")
+    .replace(/&ndash;|&#8211;/gi, "-")
+    .replace(/&mdash;|&#8212;/gi, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseReviewedDate(sectionHtml, fallbackDate) {
+  const text = stripHtml(sectionHtml);
+  const match = /Last reviewed on\s+(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/i.exec(text);
+  if (match) {
+    const day = String(Number(match[1])).padStart(2, "0");
+    const month = MONTHS[match[2].toLowerCase()];
+    const year = match[3];
+    if (month && Number(day) >= 1 && Number(day) <= 31) {
+      return `${year}-${month}-${day}`;
+    }
+  }
+  const dateObj = fallbackDate instanceof Date ? fallbackDate : new Date(fallbackDate);
+  return dateObj.toISOString().slice(0, 10);
+}
+
+export function parseAbsaNoticeSelectHtml(html, now = new Date()) {
+  if (typeof html !== "string" || !html.trim()) return null;
+
+  const startMatch = /title=["']notice-select["']|<h2[^>]*>\s*notice-select\s*<\/h2>/i.exec(html);
+  if (!startMatch) return null;
+
+  const afterStart = html.slice(startMatch.index);
+  const endMatch = /<li[^>]+class=["'][^"']*accordion-slide|title=["']tax-free-savings["']/i.exec(afterStart.slice(1));
+  const sectionHtml = endMatch ? afterStart.slice(0, endMatch.index + 1) : afterStart;
+
+  const tableRegex = /<table[^>]*>([\s\S]*?)<\/table>/gi;
+  const tiers = [];
+  let tableMatch;
+
+  while ((tableMatch = tableRegex.exec(sectionHtml)) !== null) {
+    const rows = [];
+    const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+    let rowMatch;
+    while ((rowMatch = rowRegex.exec(tableMatch[1])) !== null) {
+      const cells = [];
+      const cellRegex = /<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi;
+      let cellMatch;
+      while ((cellMatch = cellRegex.exec(rowMatch[1])) !== null) {
+        cells.push(stripHtml(cellMatch[1]));
+      }
+      if (cells.length) rows.push(cells);
+    }
+
+    const headingText = rows.slice(0, 3).map((r) => r.join(" | ")).join(" | ");
+    if (!/Standard\s*Rate/i.test(headingText) || /Digital\s*Bonus/i.test(headingText)) {
+      continue;
+    }
+
+    const balanceMatch = /Balance\s*R\s*([\d\s.,]+?)\s*(?:-|–|to)\s*R\s*([\d\s.,]+)/i.exec(headingText);
+    if (!balanceMatch) continue;
+
+    const minBalanceZar = Number(balanceMatch[1].replace(/[\s,]/g, ""));
+    const maxBalanceZar = Number(balanceMatch[2].replace(/[\s,]/g, ""));
+    if (!Number.isFinite(minBalanceZar) || !Number.isFinite(maxBalanceZar)) continue;
+
+    let col45Index = -1;
+    for (const row of rows) {
+      const idx = row.findIndex((cell) => /\b45\s*Days\b/i.test(cell));
+      if (idx !== -1) {
+        col45Index = idx;
+        break;
+      }
+    }
+    if (col45Index === -1) continue;
+
+    let rate100 = null;
+    for (const row of rows) {
+      if (/^100\s*\/\s*0+$/.test(row[0]) && row[col45Index]) {
+        const rateMatch = /(\d+(?:\.\d+)?)\s*%/.exec(row[col45Index]);
+        if (rateMatch) {
+          rate100 = Number(rateMatch[1]);
+          break;
+        }
+      }
+    }
+
+    if (Number.isFinite(rate100) && rate100 >= 0 && rate100 <= 100) {
+      tiers.push({
+        minBalanceZar,
+        maxBalanceZar,
+        annualRatePercent: rate100,
+      });
+    }
+  }
+
+  tiers.sort((a, b) => a.minBalanceZar - b.minBalanceZar);
+  const substantiveTiers = tiers.filter((tier) => tier.minBalanceZar >= 1000 && tier.annualRatePercent > 0);
+  const primaryTier = substantiveTiers[0] || tiers.find((tier) => tier.annualRatePercent > 0) || null;
+  if (!primaryTier) return null;
+
+  return {
+    minimumInvestmentZar: primaryTier.minBalanceZar,
+    annualRatePercent: primaryTier.annualRatePercent,
+    rateAsOf: parseReviewedDate(sectionHtml, now),
+    rateTiers: substantiveTiers.length ? substantiveTiers : tiers,
+  };
+}
+
+export function buildFundData(env = {}, now = new Date(), scraped = null) {
+  const envMinimum = optionalNumber(env.ABSA_MINIMUM_ZAR, "ABSA_MINIMUM_ZAR");
+  const envRate = optionalNumber(env.ABSA_ANNUAL_RATE_PERCENT, "ABSA_ANNUAL_RATE_PERCENT");
+  const envRateAsOf = env.ABSA_RATE_AS_OF || null;
+  if (envRateAsOf !== null && !/^\d{4}-\d{2}-\d{2}$/.test(envRateAsOf)) {
     throw new Error("ABSA_RATE_AS_OF must use YYYY-MM-DD format");
   }
+
+  const minimumInvestmentZar = envMinimum !== null
+    ? envMinimum
+    : (scraped && Number.isFinite(scraped.minimumInvestmentZar) ? scraped.minimumInvestmentZar : null);
+  const annualRatePercent = envRate !== null
+    ? envRate
+    : (scraped && Number.isFinite(scraped.annualRatePercent) ? scraped.annualRatePercent : null);
+  const rateAsOf = envRateAsOf !== null
+    ? envRateAsOf
+    : (scraped && typeof scraped.rateAsOf === "string" ? scraped.rateAsOf : null);
 
   return {
     updatedAt: now.toISOString(),
@@ -190,15 +328,96 @@ async function handleStrc(request, ctx) {
   }
 }
 
-async function handleFunds(env) {
+async function fetchHtml(url) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 12000);
   try {
-    return jsonResponse(buildFundData(env), 200, {
-      "Cache-Control": "public, max-age=60",
+    const response = await fetch(url, {
+      headers: HTML_UPSTREAM_HEADERS,
+      redirect: "follow",
+      cf: {
+        cacheEverything: true,
+        cacheTtl: ONE_WEEK_SECONDS,
+      },
+      signal: controller.signal,
     });
+    if (!response.ok) throw new Error(`Absa rate page returned HTTP ${response.status}`);
+    return await response.text();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function handleFunds(request, env, ctx) {
+  let baseline;
+  try {
+    baseline = buildFundData(env);
   } catch (error) {
     console.error("Fund data configuration is invalid:", error);
     return jsonResponse({ error: "Fund data configuration is invalid" }, 500);
   }
+
+  const hasFullEnvOverride =
+    baseline.funds[0].minimumInvestmentZar !== null &&
+    baseline.funds[0].annualRatePercent !== null &&
+    baseline.funds[0].rateAsOf !== null;
+  if (hasFullEnvOverride) {
+    return jsonResponse(baseline, 200, {
+      "Cache-Control": `public, max-age=${ONE_WEEK_SECONDS}`,
+    });
+  }
+
+  const cache = typeof caches !== "undefined" && caches ? caches.default : null;
+  const cacheKey = new Request(new URL("/api/funds", request.url), { method: "GET" });
+  if (cache) {
+    try {
+      const cached = await cache.match(cacheKey);
+      if (cached) {
+        const headers = new Headers(cached.headers);
+        headers.set("Access-Control-Allow-Origin", "*");
+        return new Response(cached.body, {
+          status: cached.status,
+          statusText: cached.statusText,
+          headers,
+        });
+      }
+    } catch (error) {
+      console.error("Funds cache lookup failed:", error);
+    }
+  }
+
+  let scraped = null;
+  try {
+    const html = await fetchHtml(PRODUCT_SOURCE);
+    scraped = parseAbsaNoticeSelectHtml(html);
+    if (!scraped) {
+      console.error("Absa Notice Select rate table could not be parsed from upstream HTML");
+    }
+  } catch (error) {
+    console.error("Absa rate page request failed:", error);
+  }
+
+  const payload = buildFundData(env, new Date(), scraped);
+  const hasVerifiedData =
+    payload.funds[0].minimumInvestmentZar !== null &&
+    payload.funds[0].annualRatePercent !== null;
+  const maxAge = hasVerifiedData ? ONE_WEEK_SECONDS : 60;
+  const response = jsonResponse(payload, 200, {
+    "Cache-Control": `public, max-age=${maxAge}`,
+  });
+
+  if (cache && hasVerifiedData) {
+    const putPromise = cache.put(cacheKey, response.clone()).catch((error) => {
+      console.error("Funds cache write failed:", error);
+    });
+    if (ctx && typeof ctx.waitUntil === "function") {
+      ctx.waitUntil(putPromise);
+    } else {
+      await putPromise;
+    }
+  }
+
+  return response;
 }
 
 export default {
@@ -211,7 +430,7 @@ export default {
       if (request.method !== "GET") {
         return jsonResponse({ error: "Method not allowed" }, 405, { Allow: "GET" });
       }
-      return handleFunds(env);
+      return handleFunds(request, env, ctx);
     }
     if (url.pathname === "/api/strc") {
       if (request.method !== "GET") {
