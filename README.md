@@ -20,7 +20,9 @@ The annual income goal is editable and saved in the current browser only.
 
 ## Run and deploy
 
-From this directory, run `npx wrangler dev` for local preview and `npx wrangler deploy` to deploy the Worker and static assets. The configured Worker name is `investment-funds`. No other workspace Worker is modified.
+GitHub Pages is configured to publish the `main` branch root. Keep `index.html` and `app.js` in that root. GitHub Pages requests the data API from `https://investment-funds.koosbilly9.workers.dev`; the Worker permits public read access for this static site.
+
+From this directory, run `bun x wrangler dev` for local preview and `bun x wrangler deploy` to deploy the Worker and root static assets. `.assetsignore` excludes repository files from Worker asset uploads. The configured Worker name is `investment-funds`.
 
 ## Tests
 

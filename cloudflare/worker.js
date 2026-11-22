@@ -15,7 +15,20 @@ function jsonResponse(body, status, headers = {}) {
       "Content-Type": "application/json; charset=utf-8",
       "Cache-Control": "no-store",
       "X-Content-Type-Options": "nosniff",
+      "Access-Control-Allow-Origin": "*",
       ...headers,
+    },
+  });
+}
+
+function optionsResponse() {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Headers": "Accept",
+      "Access-Control-Max-Age": "86400",
     },
   });
 }
@@ -183,6 +196,9 @@ async function handleFunds(env) {
 export default {
   async fetch(request, env = {}, ctx) {
     const url = new URL(request.url);
+    if ((url.pathname === "/api/funds" || url.pathname === "/api/strc") && request.method === "OPTIONS") {
+      return optionsResponse();
+    }
     if (url.pathname === "/api/funds") {
       if (request.method !== "GET") {
         return jsonResponse({ error: "Method not allowed" }, 405, { Allow: "GET" });

@@ -1,0 +1,9 @@
+/.git/**
+/.wrangler/**
+/cloudflare/**
+/public/**
+/tests/**
+/README.md
+/wrangler.toml
+/.gitignore
+/.assetsignore

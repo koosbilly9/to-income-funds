@@ -34,11 +34,17 @@ test("GET /api/funds returns cacheable JSON and non-GET requests are rejected", 
   const getResponse = await worker.fetch(new Request("https://funds.example/api/funds"), {});
   assert.equal(getResponse.status, 200);
   assert.equal(getResponse.headers.get("Cache-Control"), "public, max-age=60");
+  assert.equal(getResponse.headers.get("Access-Control-Allow-Origin"), "*");
   assert.equal((await getResponse.json()).funds.length, 1);
 
   const postResponse = await worker.fetch(new Request("https://funds.example/api/funds", { method: "POST" }), {});
   assert.equal(postResponse.status, 405);
   assert.equal(postResponse.headers.get("Allow"), "GET");
+
+  const preflight = await worker.fetch(new Request("https://funds.example/api/funds", { method: "OPTIONS" }), {});
+  assert.equal(preflight.status, 204);
+  assert.equal(preflight.headers.get("Access-Control-Allow-Origin"), "*");
+  assert.equal(preflight.headers.get("Access-Control-Allow-Methods"), "GET, OPTIONS");
 });
 
 test("returns a server error for invalid public fund configuration", async () => {
@@ -136,6 +142,7 @@ test("GET /api/strc fetches current quotes and returns a five-minute cache heade
     const response = await worker.fetch(new Request("https://funds.example/api/strc"), {});
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("Cache-Control"), "public, max-age=300");
+    assert.equal(response.headers.get("Access-Control-Allow-Origin"), "*");
     const data = await response.json();
     assert.equal(data.priceUsd, 100);
     assert.equal(data.usdZar, 17.5);

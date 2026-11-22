@@ -3,6 +3,14 @@
 
   var DEFAULT_TARGET = 300000;
   var SETTINGS_KEY = "income-funds-settings-v1";
+  var WORKER_URL = "https://investment-funds.koosbilly9.workers.dev";
+
+  function apiUrl(path, hostname) {
+    var host = typeof hostname === "string"
+      ? hostname
+      : root.location && root.location.hostname;
+    return (host === "koosbilly9.github.io" ? WORKER_URL : "") + path;
+  }
 
   function number(value) {
     if (typeof value !== "number" && !(typeof value === "string" && value.trim())) return NaN;
@@ -62,14 +70,14 @@
   }
 
   function requestFunds() {
-    return root.fetch("/api/funds", { headers: { Accept: "application/json" } }).then(function (response) {
+    return root.fetch(apiUrl("/api/funds"), { headers: { Accept: "application/json" } }).then(function (response) {
       if (!response.ok) throw new Error("Fund details request failed (HTTP " + response.status + ")");
       return response.json();
     }).then(validFundPayload);
   }
 
   function requestStrc() {
-    return root.fetch("/api/strc", { headers: { Accept: "application/json" } }).then(function (response) {
+    return root.fetch(apiUrl("/api/strc"), { headers: { Accept: "application/json" } }).then(function (response) {
       if (!response.ok) throw new Error("STRC market data request failed (HTTP " + response.status + ")");
       return response.json();
     }).then(function (payload) {
@@ -226,6 +234,7 @@
   if (typeof module !== "undefined" && module.exports) {
     module.exports = {
       DEFAULT_TARGET: DEFAULT_TARGET,
+      apiUrl: apiUrl,
       formatRand: formatRand,
       requiredBalance: requiredBalance,
       targetShares: targetShares,
