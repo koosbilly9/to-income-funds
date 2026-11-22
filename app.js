@@ -77,7 +77,7 @@
   }
 
   function requestStrc() {
-    return root.fetch(apiUrl("/api/strc"), { headers: { Accept: "application/json" } }).then(function (response) {
+    return root.fetch(apiUrl("/api/strc?v=2"), { headers: { Accept: "application/json" } }).then(function (response) {
       if (!response.ok) throw new Error("STRC market data request failed (HTTP " + response.status + ")");
       return response.json();
     }).then(function (payload) {

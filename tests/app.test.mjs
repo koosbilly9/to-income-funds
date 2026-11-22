@@ -26,6 +26,10 @@ test("rounds the STRC share count up after converting the ZAR goal to USD", () =
 
 test("uses the dedicated Worker API on GitHub Pages and relative routes locally", () => {
   assert.equal(
+    apiUrl("/api/strc?v=2", "koosbilly9.github.io"),
+    "https://investment-funds.koosbilly9.workers.dev/api/strc?v=2",
+  );
+  assert.equal(
     apiUrl("/api/funds", "koosbilly9.github.io"),
     "https://investment-funds.koosbilly9.workers.dev/api/funds",
   );

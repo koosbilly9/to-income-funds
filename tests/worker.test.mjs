@@ -155,6 +155,29 @@ test("GET /api/strc fetches current quotes and returns a five-minute cache heade
   }
 });
 
+test("adds CORS headers to previously cached STRC responses", async () => {
+  const originalCaches = globalThis.caches;
+  globalThis.caches = {
+    default: {
+      match: async () => new Response('{"symbol":"STRC"}', {
+        headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=300" },
+      }),
+    },
+  };
+  try {
+    const response = await worker.fetch(new Request("https://funds.example/api/strc"), {});
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("Access-Control-Allow-Origin"), "*");
+    assert.equal((await response.json()).symbol, "STRC");
+  } finally {
+    if (originalCaches === undefined) {
+      delete globalThis.caches;
+    } else {
+      globalThis.caches = originalCaches;
+    }
+  }
+});
+
 test("routes static files through the assets binding and returns API 404s", async () => {
   const assets = {
     fetch(request) {

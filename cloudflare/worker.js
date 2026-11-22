@@ -151,7 +151,15 @@ async function handleStrc(request, ctx) {
   if (cache) {
     try {
       const cached = await cache.match(cacheKey);
-      if (cached) return new Response(cached.body, cached);
+      if (cached) {
+        const headers = new Headers(cached.headers);
+        headers.set("Access-Control-Allow-Origin", "*");
+        return new Response(cached.body, {
+          status: cached.status,
+          statusText: cached.statusText,
+          headers,
+        });
+      }
     } catch (error) {
       console.error("STRC cache lookup failed:", error);
     }
